@@ -1,0 +1,947 @@
+import streamlit as st
+
+# 1. Configuración de página ancha para entorno de escritorio y móvil
+st.set_page_config(
+    page_title="Ferrocarbon SAS - Logística", 
+    page_icon="https://raw.githubusercontent.com/javiergonzalez26091986-source/ferrocarbon-logistica-app/main/logoFerroCarbon.ico", 
+    layout="wide"
+)
+
+# --- ESTILOS CSS ---
+st.markdown("""
+    <style>
+    /* Ocultar el menú antiguo y el pie de página */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Ocultar barra superior y el botón rebelde de Manage App */
+    [data-testid="stAppHeader"] {display: none !important;}
+    div[data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
+    
+    /* Forzar la desaparición de los botones de despliegue/administración */
+    .stAppDeployButton {display: none !important;}
+    
+    /* Si estás viéndolo tú como administrador, esto oculta el bloque superior izquierdo */
+    header {display: none !important;}
+    iframe[title="streamlitApp"] {margin-top: -50px;}
+    
+    /* Ajustar el margen superior para que no quede un hueco vacío tras borrar la barra */
+    .block-container {
+        padding-top: 1rem !important; 
+        padding-bottom: 0rem !important;
+    }
+    
+    /* FORZAR FONDO OSCURO EN EL CONTENEDOR DE STREAMLIT */
+    .stApp {
+        background-color: #0f172a !important;
+    }
+    
+    /* Personalizar el scrollbar general para que no se vea blanco */
+    ::-webkit-scrollbar {
+        width: 10px;
+        background-color: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+        background-color: #334155;
+        border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: #3b82f6;
+    }
+    
+    /* Estilos de tus botones nativos de Streamlit */
+    div.stButton > button:first-child[kind="primary"] {
+        background-color: #28a745 !important;
+        border-color: #28a745 !important;
+        color: white !important;
+    }
+    .stColumn div.stButton > button[kind="primary"] {
+        background-color: #dc3545 !important;
+        border-color: #dc3545 !important;
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ==========================================
+# CREDENCIALES
+# ==========================================
+URL_API_APPSCRIPT = "https://script.google.com/macros/s/AKfycbxGVOVh91kOF05FfI4HEf-fL-wfhFhikWQYYNmeKFsSm2UFoH-bJ_IkwCVMX8FrlG_3/exec"
+CLOUDINARY_CLOUD_NAME = "dajnte6bp"
+CLOUDINARY_UPLOAD_PRESET = "ferrocarbon_logistica_preset"
+
+# 2. Código Frontend (CON DOBLES BARRAS MANUALES PARA PROTEGER EL OCR)
+html_frontend = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Logístico Ferrocarbon SAS</title>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --success-hover: #059669;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: var(--bg-dark); color: var(--text-main); font-family: system-ui, sans-serif; padding: 15px; }
+        
+        .app-header { background-color: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
+        .header-container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .logo-zone { display: flex; align-items: center; gap: 10px; }
+        
+        .nav-tabs { display: flex; gap: 10px; }
+        .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 10px 15px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; border-bottom: 3px solid transparent; transition: color 0.2s; }
+        .tab-btn:hover { color: var(--text-main); }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        
+        .view-panel { display: none; }
+        .view-panel.active { display: block; }
+        
+        .grid-layout { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 15px; }
+        @media (min-width: 900px) { .grid-layout { grid-template-columns: 380px 1fr; } }
+        
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; }
+        .card h3 { margin-bottom: 15px; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+        
+        .camera-placeholder { width: 100%; height: 240px; border: 2px dashed var(--border-color); border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); margin-bottom: 15px; overflow: hidden; }
+        .camera-placeholder img { width: 100%; height: 100%; object-fit: contain; }
+        
+        .form-row { display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 12px; }
+        @media (min-width: 600px) { .form-row { grid-template-columns: 1fr 1fr; } }
+        
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        
+        input, select, textarea { background-color: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); padding: 10px; outline: none; font-size: 0.95rem; width: 100%; }
+        input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+        input:disabled { background-color: #1e293b; color: #475569; cursor: not-allowed; }
+        
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; width: 100%; transition: background-color 0.2s; }
+        .btn-primary { background-color: var(--primary); color: #fff; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-success { background-color: var(--success); color: #fff; }
+        .btn-success:hover { background-color: var(--success-hover); }
+        .btn-danger { background-color: var(--danger); color: #fff; }
+        .btn-danger:hover { background-color: var(--danger-hover); }
+        .btn:disabled { background-color: #475569; color: #94a3b8; cursor: not-allowed; }
+        
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .kpi-card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 15px; }
+        .kpi-icon { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .bg-blue { background-color: rgba(59, 130, 246, 0.15); color: var(--primary); }
+        .bg-green { background-color: rgba(16, 185, 129, 0.15); color: var(--success); }
+        .bg-orange { background-color: rgba(245, 158, 11, 0.15); color: var(--warning); }
+        
+        .table-responsive { width: 100%; overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
+        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; text-align: left; vertical-align: middle; }
+        th { background-color: #1e293b; color: var(--text-muted); font-size: 0.70rem; text-transform: uppercase; white-space: nowrap; }
+        
+        .filter-bar { background-color: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border-color); justify-content: space-between; }
+        .filter-inputs-group { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+        .export-group { display: flex; gap: 10px; }
+        .filter-input { padding: 9px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: white; outline: none; width: 150px; }
+        .calendar-input { padding: 9px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: white; outline: none; width: 120px; cursor: pointer; text-align: center; }
+        
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background-color: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); padding: 15px 20px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); min-width: 300px; }
+        .toast-success { border-left: 5px solid var(--success); }
+        .toast-error { border-left: 5px solid var(--danger); }
+        
+        .ocr-progress-bar { width: 100%; background-color: var(--bg-dark); height: 6px; border-radius: 3px; margin-top: 10px; display: none; overflow: hidden; }
+        .ocr-progress-fill { height: 100%; background-color: var(--primary); width: 0%; transition: width 0.1s; }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        .flatpickr-day.selected { background: var(--primary) !important; border-color: var(--primary) !important; }
+        .flatpickr-day:hover { background: var(--border-color) !important; }
+    </style>
+</head>
+<body>
+
+    <datalist id="lista-lugares-despacho"></datalist>
+    <datalist id="lista-ciudades-procedencia"></datalist>
+    <datalist id="lista-proveedores"></datalist>
+    <datalist id="lista-vehiculos"></datalist>
+    <datalist id="lista-clientes"></datalist>
+    <datalist id="lista-conductores"></datalist>
+
+    <div class="toast-container" id="toast-box"></div>
+
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo-zone">
+                <img src="https://raw.githubusercontent.com/javiergonzalez26091986-source/ferrocarbon-logistica-app/main/logoFerroCarbon.jpeg" alt="Logo Ferrocarbon" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary);">
+                <h2>Ferrocarbon <span style="color:#3b82f6;">SAS</span></h2>
+            </div>
+            <nav class="nav-tabs">
+                <button class="tab-btn active" id="btn-reg" onclick="switchTab('registro')"><i data-lucide="file-plus-2"></i> Registro OCR</button>
+                <button class="tab-btn" id="btn-dash" onclick="switchTab('dashboard')"><i data-lucide="layout-dashboard"></i> Dashboard</button>
+            </nav>
+        </div>
+    </header>
+
+    <section id="view-registro" class="view-panel active">
+        <div class="grid-layout">
+            
+            <div class="card">
+                <h3><i data-lucide="camera"></i> Soporte de Remisión</h3>
+                <div class="camera-placeholder" id="camera-box">
+                    <i data-lucide="image-up" style="width:40px; height:40px; margin-bottom:10px;"></i>
+                    <p>No se ha cargado remisión</p>
+                </div>
+                
+                <div id="ocr-progress-container" style="display: none; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+                        <span id="ocr-status-text">Procesando imagen...</span>
+                        <span id="ocr-percentage">0%</span>
+                    </div>
+                    <div class="ocr-progress-bar" id="ocr-progress-bar" style="display:block;">
+                        <div class="ocr-progress-fill" id="ocr-progress-fill"></div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <label class="btn btn-primary" style="flex: 1;">
+                        <i data-lucide="camera"></i> Tomar Foto
+                        <input type="file" accept="image/*" capture="environment" id="file-input-camera" style="display: none;">
+                    </label>
+                    <label class="btn btn-primary" style="flex: 1;">
+                        <i data-lucide="upload"></i> Subir Archivo
+                        <input type="file" accept="image/*" id="file-input-gallery" style="display: none;">
+                    </label>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><i data-lucide="file-text"></i> Formulario de Operación</h3>
+                <form id="logistics-form" onsubmit="enviarFormulario(event)">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="num_remision">Num_Remision</label>
+                            <input type="text" id="num_remision" required placeholder="Número de remisión física">
+                        </div>
+                        <div class="form-group">
+                            <label for="tipo_movimiento">Tipo_Movimiento</label>
+                            <select id="tipo_movimiento" required>
+                                <option value="INGRESO" selected>INGRESO</option>
+                                <option value="DESPACHO">DESPACHO</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fecha_ingreso">Fecha_Ingreso</label>
+                            <input type="date" id="fecha_ingreso" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="hora_ingreso">Hora_Ingreso</label>
+                            <input type="text" id="hora_ingreso" required placeholder="Ej: 04:30 pm">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ciudad_procedencia">Lugar_Despacho</label>
+                            <input type="text" id="ciudad_procedencia" list="lista-lugares-despacho" required placeholder="Digite para buscar" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="proveedor">Proveedor</label>
+                            <input type="text" id="proveedor" list="lista-proveedores" required placeholder="Escribe el origen primero" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ciudad_destino">Ciudad_Procedencia</label>
+                            <input type="text" id="ciudad_destino" list="lista-ciudades-procedencia" required placeholder="Seleccione" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="tiquete_bascula">Tiquete_Báscula</label>
+                            <input type="text" id="tiquete_bascula" required placeholder="Ej: 123456">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="medicion_mts3">Medicion_Mts3</label>
+                            <input type="number" step="0.01" id="medicion_mts3" disabled placeholder="Volumen M3">
+                        </div>
+                        <div class="form-group">
+                            <label for="peso">Peso (Toneladas)</label>
+                            <input type="number" step="0.01" id="peso" required placeholder="Cantidad de Toneladas">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="placa_vehiculo">Placa_Vehiculo</label>
+                            <input type="text" id="placa_vehiculo" list="lista-vehiculos" required autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="conductor">Conductor</label>
+                            <input type="text" id="conductor" list="lista-conductores" required placeholder="Escriba para sugerir..." autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label for="cliente">Destino</label>
+                            <input type="text" id="cliente" list="lista-clientes" required autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="observaciones">Observaciones</label>
+                        <textarea id="observaciones" rows="2" placeholder="Texto extraído por OCR..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="btn-submit">
+                        <i data-lucide="save"></i> Registrar en Google Sheets
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section id="view-dashboard" class="view-panel">
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-blue"><i data-lucide="trending-up"></i></div>
+                <div><span class="kpi-val" id="dash-total">0</span><br><span class="kpi-label">Remisiones Totales</span></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon bg-green"><i data-lucide="truck"></i></div>
+                <div><span class="kpi-val" id="dash-ingresos">0</span><br><span class="kpi-label">Total Ingresos</span></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon bg-orange"><i data-lucide="layers"></i></div>
+                <div><span class="kpi-val" id="dash-volumen">0 Mts³</span><br><span class="kpi-label">Volumen Total</span></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                <h3><i data-lucide="database"></i> Historial Contable y Control Financiero</h3>
+                <button class="btn btn-primary" onclick="cargarHistorialCompleto()" style="width:auto; padding:8px 15px;"><i data-lucide="refresh-cw"></i> Sincronizar Base</button>
+            </div>
+            
+            <div class="filter-bar">
+                <div class="filter-inputs-group">
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-size: 0.70rem; color: var(--text-muted); font-weight: bold;">FECHA INICIO</label>
+                        <input type="text" id="filtro-inicio" class="calendar-input" placeholder="Día...">
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-size: 0.70rem; color: var(--text-muted); font-weight: bold;">FECHA FIN</label>
+                        <input type="text" id="filtro-fin" class="calendar-input" placeholder="Día...">
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-size: 0.70rem; color: var(--text-muted); font-weight: bold;">CLIENTE</label>
+                        <input type="text" id="filtro-cliente" class="filter-input" list="lista-clientes" placeholder="Todos (Buscar)" autocomplete="off">
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-size: 0.70rem; color: var(--text-muted); font-weight: bold;">ORIGEN</label>
+                        <input type="text" id="filtro-procedencia" class="filter-input" list="lista-lugares-despacho" placeholder="Todos (Buscar)" autocomplete="off">
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-size: 0.70rem; color: var(--text-muted); font-weight: bold;">DESTINO</label>
+                        <input type="text" id="filtro-destino" class="filter-input" list="lista-ciudades-procedencia" placeholder="Todos (Buscar)" autocomplete="off">
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <label style="font-size: 0.70rem; color: var(--text-muted); font-weight: bold;">PROVEEDOR</label>
+                        <input type="text" id="filtro-proveedor" class="filter-input" list="lista-proveedores" placeholder="Todos (Buscar)" autocomplete="off">
+                    </div>
+                </div>
+                
+                <div class="export-group">
+                    <button class="btn btn-primary" onclick="aplicarFiltros()" style="width: auto; padding: 10px 15px;"><i data-lucide="filter"></i> Buscar</button>
+                    <button class="btn" onclick="limpiarFiltros()" style="width: auto; padding: 10px 15px; background: var(--border-color); color: var(--text-main);"><i data-lucide="x-circle"></i> Borrar</button>
+                    <button class="btn btn-success" onclick="exportarExcel()" style="width: auto; padding: 10px 15px;"><i data-lucide="download"></i> Excel</button>
+                    <button class="btn btn-danger" onclick="exportarPDF()" style="width: auto; padding: 10px 15px;"><i data-lucide="file-text"></i> PDF</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Remisión/Mov</th>
+                            <th>Proveedor</th>
+                            <th>Cliente</th>
+                            <th>Peso/Vol</th>
+                            <th>Ruta</th>
+                            <th style="color:var(--warning);">Costo Origen</th>
+                            <th>Vlr Mercancía</th>
+                            <th>Vlr Flete</th>
+                            <th style="color:var(--success);">Total Cobrar</th>
+                            <th style="text-align:center;">Soporte</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-registros">
+                        <tr><td colspan="12" style="text-align:center; padding:30px; color:var(--text-muted);">Sincronice la base de datos para ver los reportes financieros.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        lucide.createIcons();
+        document.getElementById('fecha_ingreso').value = new Date().toISOString().substring(0, 10);
+
+        const API_URL = "REPLACEME_URL";
+        const CLOUD_NAME = "REPLACEME_CLOUD_NAME";
+        const UPLOAD_PRESET = "REPLACEME_UPLOAD_PRESET";
+
+        let urlCloudinaryGlobal = ""; 
+        let historialDatosGlobal = [];
+        let datosEnPantalla = []; 
+        
+        let metaProveedores = [];
+        let metaCostos = [];
+        let metaPrecios = [];
+        
+        let metaRemisiones = [];
+        let metaTiquetes = [];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const configCalendario = { locale: "es", theme: "dark", dateFormat: "Y-m-d", disableMobile: true, allowInput: true };
+            flatpickr("#filtro-inicio", configCalendario);
+            flatpickr("#filtro-fin", configCalendario);
+            cargarListasDesplegablesSheets();
+            
+            document.getElementById('medicion_mts3').disabled = true;
+        });
+
+        function formatearFecha(cadenaStr) {
+            if (!cadenaStr) return "---";
+            let d = new Date(cadenaStr);
+            return isNaN(d.getTime()) ? cadenaStr : d.toLocaleDateString('es-CO');
+        }
+
+        function formatearHora(cadenaStr) {
+            if (!cadenaStr) return "---";
+            let tz = cadenaStr.includes('Z') ? 'UTC' : undefined;
+            let d = new Date(cadenaStr);
+            return isNaN(d.getTime()) ? cadenaStr : d.toLocaleTimeString('es-CO', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+        }
+
+        function limpiarMonto(montoSucio) {
+            let str = String(montoSucio).replace(/[^0-9]/g, '');
+            return parseFloat(str) || 0;
+        }
+
+        function construirOpcionesDatalist(idDatalist, datos) {
+            const el = document.getElementById(idDatalist);
+            if (!el || !datos) return;
+            let unicos = [...new Set(datos)].filter(Boolean).sort();
+            el.innerHTML = unicos.map(item => '<option value="' + item + '"></option>').join('');
+        }
+
+        function cargarListasDesplegablesSheets() {
+            fetch(API_URL + "?action=getMetadata", { method: "GET", mode: "cors" })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success && result.metadata) {
+                    const m = result.metadata;
+                    
+                    construirOpcionesDatalist("lista-lugares-despacho", m.listaLugaresDespacho);
+                    construirOpcionesDatalist("lista-ciudades-procedencia", m.listaCiudadesProcedencia);
+                    
+                    construirOpcionesDatalist("lista-vehiculos", m.listaVehiculos);
+                    construirOpcionesDatalist("lista-clientes", m.listaClientes);
+                    construirOpcionesDatalist("lista-conductores", m.listaConductores);
+                    
+                    metaCostos = m.listaCostos || [];
+                    metaPrecios = m.listaPrecios || [];
+                    metaProveedores = m.listaProveedores || [];
+                    
+                    metaRemisiones = m.listaRemisionesExistentes || [];
+                    metaTiquetes = m.listaTiquetesExistentes || [];
+                    
+                    let listaProveedoresLimpios = metaProveedores.map(p => p.proveedor || p);
+                    construirOpcionesDatalist("lista-proveedores", listaProveedoresLimpios);
+                }
+            });
+        }
+
+        function notificar(msg, tipo) {
+            const box = document.getElementById('toast-box');
+            const t = document.createElement('div');
+            t.className = 'toast toast-' + (tipo || 'success');
+            t.innerHTML = '<span style="flex-grow: 1;">' + msg + '</span>' + 
+                          '<span style="cursor:pointer; padding-left: 15px; font-weight:bold; font-size:1.2rem; color: inherit;" onclick="this.parentElement.remove()">✕</span>';
+            box.appendChild(t);
+            const tiempoVisible = (tipo === 'error') ? 12000 : 4000;
+            setTimeout(() => { if (t.parentElement) t.remove(); }, tiempoVisible);
+        }
+
+        document.getElementById('num_remision').addEventListener('change', function() {
+            const val = this.value.trim().toUpperCase();
+            if (val && metaRemisiones.includes(val)) {
+                notificar("🚨 ¡CUIDADO! La Remisión '" + val + "' ya fue registrada previamente.", "error");
+                this.style.borderColor = "var(--danger)";
+                this.value = ""; 
+            } else {
+                this.style.borderColor = "var(--border-color)";
+            }
+        });
+
+        document.getElementById('tiquete_bascula').addEventListener('change', function() {
+            const val = this.value.trim().toUpperCase();
+            if (val && metaTiquetes.includes(val)) {
+                notificar("🚨 ¡CUIDADO! El Tiquete '" + val + "' ya fue registrado previamente.", "error");
+                this.style.borderColor = "var(--danger)";
+                this.value = ""; 
+            } else {
+                this.style.borderColor = "var(--border-color)";
+            }
+        });
+
+        document.getElementById('ciudad_procedencia').addEventListener('change', function() {
+            const ciudadSel = this.value.trim().toUpperCase();
+            
+            if (metaProveedores.length > 0 && typeof metaProveedores[0] === 'object') {
+                const filtrados = metaProveedores.filter(p => p.ciudad && p.ciudad.toUpperCase() === ciudadSel).map(p => p.proveedor);
+                construirOpcionesDatalist("lista-proveedores", filtrados.length > 0 ? filtrados : metaProveedores.map(p => p.proveedor));
+            }
+            
+            const inputMts3 = document.getElementById('medicion_mts3');
+            if (ciudadSel.includes('VALLE')) {
+                inputMts3.disabled = false;
+            } else {
+                inputMts3.disabled = true;
+                inputMts3.value = ''; 
+                document.getElementById('peso').value = ''; 
+            }
+        });
+
+        document.getElementById('medicion_mts3').addEventListener('input', function() {
+            const FACTOR_CONVERSION = 0.85; 
+            const mts3 = parseFloat(this.value);
+            const inputPeso = document.getElementById('peso');
+            
+            if (!isNaN(mts3)) {
+                inputPeso.value = (mts3 * FACTOR_CONVERSION).toFixed(2);
+            } else {
+                inputPeso.value = '';
+            }
+        });
+
+        function subirImagenACloudinary(fileObject) {
+            const btnSubmit = document.getElementById('btn-submit');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando soporte...';
+            lucide.createIcons();
+
+            const formData = new FormData();
+            formData.append('file', fileObject);
+            formData.append('upload_preset', UPLOAD_PRESET);
+
+            fetch('https://api.cloudinary.com/v1_1/' + CLOUD_NAME + '/image/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.secure_url) {
+                    urlCloudinaryGlobal = data.secure_url; 
+                    notificar("Soporte digital alojado en la nube.", "success");
+                }
+            })
+            .finally(() => {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i data-lucide="save"></i> Registrar en Google Sheets';
+                lucide.createIcons();
+            });
+        }
+
+        const fileInputCam = document.getElementById('file-input-camera');
+        const fileInputGal = document.getElementById('file-input-gallery');
+        const cameraBox = document.getElementById('camera-box');
+        
+        function procesarImagenEscogida(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            subirImagenACloudinary(file);
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                cameraBox.innerHTML = '<img src="' + evt.target.result + '">';
+                document.getElementById('ocr-progress-container').style.display = 'block';
+                Tesseract.recognize(file, 'spa', {
+                    logger: m => { if(m.status === 'recognizing text') document.getElementById('ocr-progress-fill').style.width = Math.round(m.progress * 100) + '%'; }
+                }).then(({ data: { text } }) => {
+                    document.getElementById('ocr-progress-container').style.display = 'none';
+                    mapearTextoOcrAFormulario(text);
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        if (fileInputCam) fileInputCam.addEventListener('change', procesarImagenEscogida);
+        if (fileInputGal) fileInputGal.addEventListener('change', procesarImagenEscogida);
+
+        function normalizarTexto(cadena) {
+            if (!cadena) return "";
+            return String(cadena).normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toUpperCase().trim();
+        }
+
+        function mapearTextoOcrAFormulario(texto) {
+            document.getElementById('observaciones').value = texto;
+            const up = texto.toUpperCase();
+            
+            let numMatch = up.match(/(?:REMISI[OÓ]N|N[O°]\\.?)\\s*(\\d+)/);
+            if (numMatch) {
+                let el = document.getElementById('num_remision');
+                el.value = numMatch[1];
+                el.dispatchEvent(new Event('change')); 
+            }
+            
+            let placaMatch = up.match(/([A-Z]{3})\\s*[-_]?\\s*(\\d{3})/);
+            if (placaMatch) document.getElementById('placa_vehiculo').value = placaMatch[1] + ' ' + placaMatch[2];
+            
+            let mtsMatch = up.match(/(\\d+(Y\\.\\d+)?)\\s*(?:MTS|MTS3|M³)/);
+            if (mtsMatch) {
+                let el = document.getElementById('medicion_mts3');
+                if(!el.disabled) {
+                    el.value = mtsMatch[1];
+                    el.dispatchEvent(new Event('input')); 
+                }
+            }
+        }
+
+        function enviarFormulario(e) {
+            e.preventDefault();
+            
+            const valRem = document.getElementById('num_remision').value.trim().toUpperCase();
+            if (valRem && metaRemisiones.includes(valRem)) {
+                notificar("Error: La Remisión ya existe. Por favor cambie el número.", "error");
+                document.getElementById('num_remision').focus();
+                return;
+            }
+
+            const valTiq = document.getElementById('tiquete_bascula').value.trim().toUpperCase();
+            if (valTiq && metaTiquetes.includes(valTiq)) {
+                notificar("Error: El Tiquete de Báscula ya existe. Por favor cambie el número.", "error");
+                document.getElementById('tiquete_bascula').focus();
+                return;
+            }
+
+            function validarExistencia(idInput, idDatalist, nombreCampo) {
+                const val = document.getElementById(idInput).value.trim();
+                const datalist = document.getElementById(idDatalist);
+                if (!datalist) return true;
+                
+                const opciones = Array.from(datalist.options).map(o => o.value);
+                if (val !== "" && !opciones.includes(val)) {
+                    notificar("Error: '" + val + "' no existe en la base. Agregue primero el " + nombreCampo + " en Google Sheets.", "error");
+                    document.getElementById(idInput).style.borderColor = "var(--danger)";
+                    document.getElementById(idInput).focus();
+                    return false;
+                }
+                document.getElementById(idInput).style.borderColor = "var(--border-color)";
+                return true;
+            }
+
+            if (!validarExistencia('ciudad_procedencia', 'lista-lugares-despacho', 'Lugar de Despacho')) return;
+            if (!validarExistencia('proveedor', 'lista-proveedores', 'Proveedor')) return;
+            if (!validarExistencia('ciudad_destino', 'lista-ciudades-procedencia', 'Ciudad de Procedencia')) return;
+            if (!validarExistencia('cliente', 'lista-clientes', 'Cliente')) return;
+
+            const btn = document.getElementById('btn-submit');
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando...';
+            lucide.createIcons();
+
+            const payload = {
+                action: "write",
+                num_remision: document.getElementById('num_remision').value,
+                tipo_movimiento: document.getElementById('tipo_movimiento').value,
+                fecha_ingreso: document.getElementById('fecha_ingreso').value,
+                hora_ingreso: document.getElementById('hora_ingreso').value,
+                ciudad_procedencia: document.getElementById('ciudad_procedencia').value,
+                proveedor: document.getElementById('proveedor').value,
+                ciudad_destino: document.getElementById('ciudad_destino').value,
+                tiquete_bascula: document.getElementById('tiquete_bascula').value,
+                medicion_mts3: document.getElementById('medicion_mts3').value,
+                placa_vehiculo: document.getElementById('placa_vehiculo').value,
+                conductor: document.getElementById('conductor').value,
+                cliente: document.getElementById('cliente').value,
+                url_soporte_cloudinary: urlCloudinaryGlobal, 
+                peso: document.getElementById('peso').value,
+                observaciones: document.getElementById('observaciones').value
+            };
+
+            fetch(API_URL, { method: "POST", mode: "cors", body: JSON.stringify(payload) })
+            .then(res => res.json())
+            .then(res => {
+                if(res.success) {
+                    notificar("¡Remisión guardada con éxito!", "success");
+                    
+                    if(payload.num_remision) metaRemisiones.push(payload.num_remision.toUpperCase());
+                    if(payload.tiquete_bascula) metaTiquetes.push(payload.tiquete_bascula.toUpperCase());
+
+                    document.getElementById('logistics-form').reset();
+                    document.getElementById('fecha_ingreso').value = new Date().toISOString().substring(0, 10);
+                    cameraBox.innerHTML = '<i data-lucide="image-up" style="width:40px; height:40px;"></i><p>No se ha cargado remisión</p>';
+                    urlCloudinaryGlobal = ""; 
+                }
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="save"></i> Registrar en Google Sheets';
+                lucide.createIcons();
+            });
+        }
+
+        function switchTab(tab) {
+            document.getElementById('view-registro').classList.toggle('active', tab === 'registro');
+            document.getElementById('view-dashboard').classList.toggle('active', tab === 'dashboard');
+            document.getElementById('btn-reg').classList.toggle('active', tab === 'registro');
+            document.getElementById('btn-dash').classList.toggle('active', tab === 'dashboard');
+            if (tab === 'dashboard') cargarHistorialCompleto();
+        }
+
+        function cargarHistorialCompleto() {
+            const tBody = document.getElementById('tabla-registros');
+            tBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:20px;"><i data-lucide="loader-2" class="spinner"></i> Cargando base de datos contable...</td></tr>';
+            lucide.createIcons();
+
+            fetch(API_URL + "?action=read", { method: "GET", mode: "cors" })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    historialDatosGlobal = result.data; 
+                    renderizarTablaDashboard(historialDatosGlobal);
+                }
+            });
+        }
+
+        function renderizarTablaDashboard(datosRender) {
+            datosEnPantalla = datosRender; 
+            const tBody = document.getElementById('tabla-registros');
+            tBody.innerHTML = "";
+            let totalV = 0, ingresos = 0;
+            
+            if (datosRender.length === 0) {
+                tBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px;">Ningún registro coincide con los filtros aplicados.</td></tr>';
+                return;
+            }
+
+            datosRender.forEach(r => {
+                const v = parseFloat(r.medicion_mts3) || 0;
+                const peso = parseFloat(r.peso) || 0;
+                totalV += v;
+                if(r.tipo_movimiento === "INGRESO") ingresos++;
+
+                let costoTxt = "Sin registro";
+                let precioMercanciaTxt = "Sin registro";
+                let precioFleteTxt = "Sin registro";
+                let totalPrecioTxt = "Sin registro";
+                
+                let procedenciaNorm = normalizarTexto(r.ciudad_procedencia);
+                let destinoNorm = normalizarTexto(r.ciudad_destino);
+
+                if (procedenciaNorm.includes("VALLE")) {
+                    costoTxt = "Variable (Ajustar)";
+                } else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
+                    let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
+                    if (cRow) {
+                        let costoTon = limpiarMonto(cRow.costo);
+                        costoTxt = "$" + (peso * costoTon).toLocaleString('es-CO');
+                    }
+                }
+                
+                if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
+                    let pRow = metaPrecios.find(p => {
+                        let pDest = normalizarTexto(p.destino);
+                        let pProc = normalizarTexto(p.procedencia);
+                        return (pDest === destinoNorm && pProc === procedenciaNorm) || 
+                               (pDest === procedenciaNorm && pProc === destinoNorm);
+                    });
+                    
+                    if (!pRow) {
+                        pRow = metaPrecios.find(p => 
+                            (p.destino && normalizarTexto(p.destino) === destinoNorm) ||
+                            (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm)
+                        );
+                    }
+                    if (!pRow) {
+                        pRow = metaPrecios.find(p => 
+                            (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) ||
+                            (p.destino && normalizarTexto(p.destino) === procedenciaNorm)
+                        );
+                    }
+                    
+                    if (pRow) {
+                        let valorCobrarTon = limpiarMonto(pRow.precio);
+                        let fleteTon = limpiarMonto(pRow.flete);
+                        
+                        let totalMerc = peso * valorCobrarTon;
+                        let totalFlet = peso * fleteTon;
+                        let totalGlobal = totalMerc + totalFlet;
+                        
+                        precioMercanciaTxt = "$" + totalMerc.toLocaleString('es-CO');
+                        precioFleteTxt = "$" + totalFlet.toLocaleString('es-CO');
+                        totalPrecioTxt = "$" + totalGlobal.toLocaleString('es-CO');
+                    }
+                }
+
+                r.costo_calculado = costoTxt;
+                r.precio_mercancia_calculado = precioMercanciaTxt;
+                r.precio_flete_calculado = precioFleteTxt;
+                r.precio_total_calculado = totalPrecioTxt;
+
+                const imgSoporte = r.url_soporte_cloudinary 
+                    ? '<a href="' + r.url_soporte_cloudinary + '" target="_blank"><img src="' + r.url_soporte_cloudinary + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover; border: 1px solid var(--border-color);"></a>' 
+                    : '<span style="color:var(--text-muted);">---</span>';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + r.id_registro + '</td>' +
+                    '<td>' + formatearFecha(r.fecha_ingreso) + '</td>' +
+                    '<td><span style="font-weight:bold; color:var(--primary);">' + r.num_remision + '</span><br><small style="color:var(--text-muted);">' + r.tipo_movimiento + '</small></td>' +
+                    '<td>' + r.proveedor + '</td>' +
+                    '<td>' + r.cliente + '</td>' +
+                    '<td>' + peso + ' T<br><small>' + v + ' M³</small></td>' +
+                    '<td><small>' + r.ciudad_procedencia + '<br>➔ ' + r.ciudad_destino + '</small></td>' +
+                    '<td style="color:var(--warning); font-weight:bold;">' + costoTxt + '</td>' +
+                    '<td>' + precioMercanciaTxt + '</td>' +
+                    '<td>' + precioFleteTxt + '</td>' +
+                    '<td style="color:var(--success); font-weight:bold;">' + totalPrecioTxt + '</td>' +
+                    '<td style="text-align:center;">' + imgSoporte + '</td>'; 
+                tBody.appendChild(tr);
+            });
+
+            document.getElementById('dash-total').innerText = datosRender.length;
+            document.getElementById('dash-ingresos').innerText = ingresos;
+            document.getElementById('dash-volumen').innerText = totalV.toFixed(1) + " Mts³";
+        }
+
+        function aplicarFiltros() {
+            const fIni = document.getElementById('filtro-inicio').value;
+            const fFin = document.getElementById('filtro-fin').value;
+            const fCli = document.getElementById('filtro-cliente').value.toLowerCase().trim();
+            const fPro = document.getElementById('filtro-procedencia').value.toLowerCase().trim();
+            const fDes = document.getElementById('filtro-destino').value.toLowerCase().trim();
+            const fProv = document.getElementById('filtro-proveedor').value.toLowerCase().trim();
+
+            const datosFiltrados = historialDatosGlobal.filter(r => {
+                let fr = new Date(r.fecha_ingreso);
+                if (fIni && fr < new Date(fIni + "T00:00:00")) return false;
+                if (fFin && fr > new Date(fFin + "T23:59:59")) return false;
+                if (fCli && !(r.cliente || "").toLowerCase().includes(fCli)) return false;
+                if (fPro && !(r.ciudad_procedencia || "").toLowerCase().includes(fPro)) return false;
+                if (fDes && !(r.ciudad_destino || "").toLowerCase().includes(fDes)) return false;
+                if (fProv && !(r.proveedor || "").toLowerCase().includes(fProv)) return false;
+                return true;
+            });
+
+            renderizarTablaDashboard(datosFiltrados);
+            notificar("Búsqueda finalizada.", "success");
+        }
+
+        function limpiarFiltros() {
+            document.getElementById('filtro-inicio')._flatpickr.clear();
+            document.getElementById('filtro-fin')._flatpickr.clear();
+            document.getElementById('filtro-cliente').value = "";
+            document.getElementById('filtro-procedencia').value = "";
+            document.getElementById('filtro-destino').value = "";
+            document.getElementById('filtro-proveedor').value = "";
+            renderizarTablaDashboard(historialDatosGlobal);
+        }
+
+        function exportarExcel() {
+            if (datosEnPantalla.length === 0) return;
+            const datosFormateados = datosEnPantalla.map(r => ({
+                "ID": r.id_registro,
+                "Fecha": formatearFecha(r.fecha_ingreso),
+                "Remisión": r.num_remision,
+                "Movimiento": r.tipo_movimiento,
+                "Proveedor": r.proveedor,
+                "Cliente": r.cliente,
+                "Peso (T)": r.peso,
+                "Volumen (M3)": r.medicion_mts3,
+                "Procedencia": r.ciudad_procedencia,
+                "Destino": r.ciudad_destino,
+                "Costo Origen": r.costo_calculado,
+                "Valor Mercancía": r.precio_mercancia_calculado,
+                "Valor Flete": r.precio_flete_calculado,
+                "Total a Cobrar": r.precio_total_calculado,
+                "Soporte Link": r.url_soporte_cloudinary
+            }));
+            const hoja = XLSX.utils.json_to_sheet(datosFormateados);
+            const libro = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(libro, hoja, "Finanzas");
+            XLSX.writeFile(libro, "Reporte_Financiero_Ferrocarbon.xlsx");
+        }
+
+        function exportarPDF() {
+            if (datosEnPantalla.length === 0) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'pt', 'a4'); 
+            doc.text("Reporte de Control Financiero - Ferrocarbon SAS", 40, 40);
+            
+            const columnas = ["ID", "Fecha", "Remisión", "Proveedor", "Cliente", "Peso(T)", "Costo Origen", "Valor Mercancía", "Valor Flete", "Total Cobro"];
+            
+            const filas = datosEnPantalla.map(r => [
+                r.id_registro, 
+                formatearFecha(r.fecha_ingreso), 
+                r.num_remision,
+                r.proveedor,
+                r.cliente,
+                r.peso, 
+                r.costo_calculado, 
+                r.precio_mercancia_calculado,
+                r.precio_flete_calculado,
+                r.precio_total_calculado
+            ]);
+            
+            doc.autoTable({ 
+                head: [columnas], 
+                body: filas, 
+                startY: 60, 
+                theme: 'grid', 
+                styles: { fontSize: 7, cellPadding: 2 }, 
+                headStyles: { fillColor: [59, 130, 246] } 
+            });
+            doc.save("Reporte_Financiero_Ferrocarbon.pdf");
+        }
+    </script>
+</body>
+</html>
+"""
+
+# Inyección segura y final
+html_final = html_frontend.replace("REPLACEME_URL", URL_API_APPSCRIPT)\
+                          .replace("REPLACEME_CLOUD_NAME", CLOUDINARY_CLOUD_NAME)\
+                          .replace("REPLACEME_UPLOAD_PRESET", CLOUDINARY_UPLOAD_PRESET)
+
+st.components.v1.html(html_final, height=1050, scrolling=True)
