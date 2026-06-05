@@ -762,7 +762,7 @@ html_frontend = """
                 totalV += v;
                 if(r.tipo_movimiento === "INGRESO") ingresos++;
 
-                let costoTxt = "Sin registro";
+                let costoTxt = "Es despacho de inventario";
                 let precioMercanciaTxt = "Sin registro";
                 let precioFleteTxt = "Sin registro";
                 let totalPrecioTxt = "Sin registro";
