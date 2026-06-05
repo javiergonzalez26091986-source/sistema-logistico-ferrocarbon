@@ -771,7 +771,7 @@ html_frontend = """
                 let destinoNorm = normalizarTexto(r.ciudad_destino);
 
                 if (procedenciaNorm.includes("VALLE")) {
-                    costoTxt = "Variable (Ajustar)";
+                    costoTxt = "Valle (Tiene un costo variable)";
                 } else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
                     let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
                     if (cRow) {
