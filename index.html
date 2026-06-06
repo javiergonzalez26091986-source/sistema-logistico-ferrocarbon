@@ -532,7 +532,7 @@
                 let procedenciaNorm = normalizarTexto(r.ciudad_procedencia);
                 let destinoNorm = normalizarTexto(r.ciudad_destino);
 
-                if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Ajustar)"; } 
+                if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Preguntar a don Carlos)"; } 
                 else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
                     let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
                     if (cRow) { costoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
