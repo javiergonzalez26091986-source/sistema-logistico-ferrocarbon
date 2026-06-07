@@ -460,6 +460,39 @@
             const btn = document.getElementById('btn-submit');
             btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando...'; lucide.createIcons();
 
+            // --- NUEVA LÓGICA DE PRE-CÁLCULO DE VALORES PARA ALMACENAMIENTO ---
+            const pesoNum = parseFloat(document.getElementById('peso').value) || 0;
+            let procedenciaNorm = normalizarTexto(document.getElementById('ciudad_procedencia').value);
+            let destinoNorm = normalizarTexto(document.getElementById('ciudad_destino').value);
+            
+            let costoFinalGuardar = 0;
+            let precioFinalGuardar = 0;
+
+            // Calcular Costo Proveedor
+            if (procedenciaNorm.includes("VALLE")) {
+                costoFinalGuardar = 0; // Fallback / Variable según Don Carlos
+            } else if (metaCostos.length > 0) {
+                let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
+                if (cRow) costoFinalGuardar = pesoNum * limpiarMonto(cRow.costo);
+            }
+
+            // Calcular Precio Cliente (Mercancía + Flete)
+            if (metaPrecios.length > 0) {
+                let pRow = metaPrecios.find(p => {
+                    let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
+                    return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
+                });
+                if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
+                if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
+                
+                if (pRow) {
+                    let totalMerc = pesoNum * limpiarMonto(pRow.precio);
+                    let totalFlet = pesoNum * limpiarMonto(pRow.flete);
+                    precioFinalGuardar = totalMerc + totalFlet;
+                }
+            }
+            // -----------------------------------------------------------------
+
             const payload = {
                 action: "write",
                 num_remision: document.getElementById('num_remision').value,
@@ -476,7 +509,9 @@
                 cliente: document.getElementById('cliente').value,
                 url_soporte_cloudinary: urlCloudinaryGlobal, 
                 peso: document.getElementById('peso').value,
-                observaciones: document.getElementById('observaciones').value
+                observaciones: document.getElementById('observaciones').value,
+                costo_abonado: costoFinalGuardar,     // Nuevo campo enviado
+                precio_recibido: precioFinalGuardar   // Nuevo campo enviado
             };
 
             fetch(API_URL, { method: "POST", mode: "cors", body: JSON.stringify(payload) })
@@ -532,30 +567,52 @@
                 let procedenciaNorm = normalizarTexto(r.ciudad_procedencia);
                 let destinoNorm = normalizarTexto(r.ciudad_destino);
 
-                if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Preguntar a don Carlos)"; } 
-                else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
-                    let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
-                    if (cRow) { costoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
-                }
-                
-                if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
-                    let pRow = metaPrecios.find(p => {
-                        let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
-                        return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
-                    });
-                    if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
-                    if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
-                    
-                    if (pRow) {
-                        let totalMerc = peso * limpiarMonto(pRow.precio);
-                        let totalFlet = peso * limpiarMonto(pRow.flete);
-                        precioMercanciaTxt = "$" + totalMerc.toLocaleString('es-CO');
-                        precioFleteTxt = "$" + totalFlet.toLocaleString('es-CO');
-                        totalPrecioTxt = "$" + (totalMerc + totalFlet).toLocaleString('es-CO');
+                // --- VALIDACIÓN CONTABLE: ¿Ya posee el valor estático guardado e inalterable? ---
+                if (r.costo_abonado !== undefined && parseFloat(r.costo_abonado) > 0) {
+                    costoTxt = "$" + parseFloat(r.costo_abonado).toLocaleString('es-CO');
+                } else {
+                    // Fallback analítico dinámico clásico en vivo
+                    if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Preguntar a don Carlos)"; } 
+                    else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
+                        let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
+                        if (cRow) { costoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
                     }
                 }
 
-                r.costo_calculado = costoTxt; r.precio_mercancia_calculado = precioMercanciaTxt; r.precio_flete_calculado = precioFleteTxt; r.precio_total_calculado = totalPrecioTxt;
+                if (r.precio_recibido !== undefined && parseFloat(r.precio_recibido) > 0) {
+                    totalPrecioTxt = "$" + parseFloat(r.precio_recibido).toLocaleString('es-CO');
+                    precioMercanciaTxt = "Guardado"; 
+                    precioFleteTxt = "Guardado";
+                } else {
+                    // Fallback analítico dinámico clásico en vivo
+                    if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
+                        let pRow = metaPrecios.find(p => {
+                            let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
+                            return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
+                        });
+                        if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
+                        if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
+                        
+                        if (pRow) {
+                            let totalMerc = peso * limpiarMonto(pRow.precio);
+                            let totalFlet = peso * limpiarMonto(pRow.flete);
+                            precioMercanciaTxt = "$" + totalMerc.toLocaleString('es-CO');
+                            precioFleteTxt = "$" + totalFlet.toLocaleString('es-CO');
+                            totalPrecioTxt = "$" + (totalMerc + totalFlet).toLocaleString('es-CO');
+                        }
+                    }
+                }
+
+                // Conservación de variables mapeadas para procesos de descargas de reportes
+                r.costo_calculado = costoTxt; 
+                r.precio_total_calculado = totalPrecioTxt;
+                if(precioMercanciaTxt !== "Guardado"){
+                    r.precio_mercancia_calculado = precioMercanciaTxt; 
+                    r.precio_flete_calculado = precioFleteTxt;
+                } else {
+                    r.precio_mercancia_calculado = "Incluido"; 
+                    r.precio_flete_calculado = "Incluido";
+                }
 
                 const imgSoporte = r.url_soporte_cloudinary ? '<a href="' + r.url_soporte_cloudinary + '" target="_blank"><img src="' + r.url_soporte_cloudinary + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;"></a>' : '<span style="color:var(--text-muted);">---</span>';
 
