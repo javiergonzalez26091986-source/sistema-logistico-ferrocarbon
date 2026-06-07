@@ -63,7 +63,7 @@
         .bg-green { background-color: rgba(16, 185, 129, 0.15); color: var(--success); }
         .bg-orange { background-color: rgba(245, 158, 11, 0.15); color: var(--warning); }
         .table-responsive { width: 100%; overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
-        table { width: 100%; border-collapse: collapse; min-width: 1350px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1400px; }
         th, td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; text-align: left; vertical-align: middle; }
         th { background-color: #1e293b; color: var(--text-muted); font-size: 0.70rem; text-transform: uppercase; white-space: nowrap; }
         .filter-bar { background-color: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border-color); justify-content: space-between; }
@@ -80,15 +80,17 @@
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
-        /* Estilos ajustados y más limpios para los campos de la tabla */
-        .inline-edit { width: 110px; padding: 5px; font-size: 0.75rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-weight: bold; }
+        /* Inputs dinámicos y limpios para el Dashboard */
+        .inline-edit { width: 105px; padding: 6px; font-size: 0.75rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-weight: bold; }
         .inline-edit:focus { border-color: var(--primary); outline: none; }
         .inline-edit::placeholder { color: #64748b; font-weight: normal; }
         
-        .inline-abono { width: 95px; padding: 5px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid #94a3b8; background: #ffffff; color: #0f172a; font-weight: bold; margin-top: 3px; }
+        .inline-abono { width: 95px; padding: 6px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid #94a3b8; background: #ffffff; color: #0f172a; font-weight: bold; margin-top: 4px; }
+        .inline-abono:focus { border-color: var(--primary); outline: none; }
         
-        .badge-saldado { background-color: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; margin-top: 3px; }
-        .text-deuda { font-size: 0.72rem; font-weight: 600; display: inline-block; margin-top: 3px; }
+        /* Etiquetas estéticas para Saldos */
+        .badge-saldado { background-color: rgba(16, 185, 129, 0.2); color: #10b981; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; margin-top: 4px; border: 1px solid rgba(16, 185, 129, 0.4); }
+        .text-deuda { font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -305,6 +307,93 @@
             document.getElementById('medicion_mts3').disabled = true;
         });
 
+        // ==========================================
+        // FUNCIONES DE FORMATEO (MILES EN VIVO)
+        // ==========================================
+        function formatNumberInput(input) {
+            let val = input.value.replace(/\D/g, ''); // Deja solo números
+            if (val !== '') {
+                input.value = parseInt(val, 10).toLocaleString('es-CO');
+            } else {
+                input.value = '';
+            }
+        }
+
+        function getRawNumber(id) {
+            let el = document.getElementById(id);
+            if (!el || el.value === "") return ""; // Retorna vacío si no se digitó nada
+            let val = el.value.replace(/\D/g, ''); // Quita los puntos de miles
+            return parseInt(val, 10) || 0;
+        }
+
+        // ==========================================
+        // FUNCIONES DE CÁLCULO EN VIVO (TOTALES Y SALDOS)
+        // ==========================================
+        function actualizarTotalValle(id_registro) {
+            let merc = getRawNumber('valle_merc_' + id_registro) || 0;
+            let flete = getRawNumber('valle_flete_' + id_registro) || 0;
+            let total = merc + flete;
+            
+            let spanTotal = document.getElementById('total_cobrar_span_' + id_registro);
+            if (spanTotal) {
+                spanTotal.innerText = "$" + total.toLocaleString('es-CO');
+            }
+            // Como el Total cambió, hay que recalcular el saldo del cliente
+            actualizarSaldoCli(id_registro, total);
+        }
+
+        function actualizarSaldoProv(id_registro, costoOriginalFijo = null) {
+            let elCostoValle = document.getElementById('valle_costo_' + id_registro);
+            let costoTotal = elCostoValle ? (getRawNumber('valle_costo_' + id_registro) || 0) : costoOriginalFijo;
+            let abono = getRawNumber('abono_prov_' + id_registro) || 0;
+            let saldo = costoTotal - abono;
+
+            let divBadge = document.getElementById('badge_prov_' + id_registro);
+            if(!divBadge) return;
+
+            if (costoTotal > 0 || abono > 0) {
+                if (saldo <= 0) {
+                    divBadge.innerHTML = `<br><span class="badge-saldado">✔ SALDADO</span>`;
+                } else {
+                    divBadge.innerHTML = `<br><span class="text-deuda" style="color:var(--danger);">Debe: $${saldo.toLocaleString('es-CO')}</span>`;
+                }
+            } else {
+                divBadge.innerHTML = '';
+            }
+        }
+
+        function actualizarSaldoCli(id_registro, precioOriginalFijo = null) {
+            let elMerc = document.getElementById('valle_merc_' + id_registro);
+            let precioTotal = 0;
+            
+            if (elMerc) {
+                let merc = getRawNumber('valle_merc_' + id_registro) || 0;
+                let flete = getRawNumber('valle_flete_' + id_registro) || 0;
+                precioTotal = merc + flete;
+            } else {
+                precioTotal = precioOriginalFijo;
+            }
+
+            let abono = getRawNumber('abono_cli_' + id_registro) || 0;
+            let saldo = precioTotal - abono;
+
+            let divBadge = document.getElementById('badge_cli_' + id_registro);
+            if(!divBadge) return;
+
+            if (precioTotal > 0 || abono > 0) {
+                if (saldo <= 0) {
+                    divBadge.innerHTML = `<br><span class="badge-saldado">✔ SALDADO</span>`;
+                } else {
+                    divBadge.innerHTML = `<br><span class="text-deuda" style="color:var(--warning);">Le deben: $${saldo.toLocaleString('es-CO')}</span>`;
+                }
+            } else {
+                divBadge.innerHTML = '';
+            }
+        }
+
+        // ==========================================
+        // UTILIDADES GENERALES
+        // ==========================================
         function formatearFecha(cadenaStr) {
             if (!cadenaStr) return "---";
             let d = new Date(cadenaStr);
@@ -415,17 +504,20 @@
             .then(result => { if (result.success && result.data) { historialDatosGlobal = result.data; renderizarTablaDashboard(historialDatosGlobal); } });
         }
 
+        // ==========================================
+        // GUARDADO DE FILA CONTABLE HACIA SHEETS
+        // ==========================================
         function guardarFilaContable(id_registro, esValle) {
             const btn = event.currentTarget;
             btn.innerHTML = '<i data-lucide="loader-2" class="spinner" style="width:14px;height:14px;"></i>';
             lucide.createIcons();
 
-            let abonoProv = document.getElementById('abono_prov_' + id_registro).value || 0;
-            let abonoCli = document.getElementById('abono_cli_' + id_registro).value || 0;
+            let abonoProv = getRawNumber('abono_prov_' + id_registro);
+            let abonoCli = getRawNumber('abono_cli_' + id_registro);
             
-            let valleCosto = esValle ? (document.getElementById('valle_costo_' + id_registro).value || 0) : "";
-            let valleMerc = esValle ? (document.getElementById('valle_merc_' + id_registro).value || 0) : "";
-            let valleFlet = esValle ? (document.getElementById('valle_flete_' + id_registro).value || 0) : "";
+            let valleCosto = esValle ? getRawNumber('valle_costo_' + id_registro) : "";
+            let valleMerc = esValle ? getRawNumber('valle_merc_' + id_registro) : "";
+            let valleFlet = esValle ? getRawNumber('valle_flete_' + id_registro) : "";
 
             fetch(API_URL, {
                 method: "POST", mode: "cors",
@@ -453,9 +545,19 @@
                             registroLocal.valle_flete = valleFlet;
                         }
                     }
-                    renderizarTablaDashboard(historialDatosGlobal);
+                    btn.innerHTML = '<i data-lucide="check" style="width:14px;height:14px;"></i>';
+                    btn.classList.replace('btn-primary', 'btn-success');
+                    lucide.createIcons();
+                    
+                    setTimeout(() => {
+                        btn.innerHTML = '<i data-lucide="save" style="width:14px;height:14px;"></i>';
+                        btn.classList.replace('btn-success', 'btn-primary');
+                        lucide.createIcons();
+                    }, 2000);
                 } else {
                     notificar("No se pudo guardar la información.", "error");
+                    btn.innerHTML = '<i data-lucide="save" style="width:14px;height:14px;"></i>';
+                    lucide.createIcons();
                 }
             })
             .catch(() => {
@@ -465,6 +567,9 @@
             });
         }
 
+        // ==========================================
+        // RENDERIZADO DEL DASHBOARD
+        // ==========================================
         function renderizarTablaDashboard(datosRender) {
             datosEnPantalla = datosRender; 
             const tBody = document.getElementById('tabla-registros');
@@ -490,30 +595,37 @@
                 let totalFleteCalculado = 0;
                 let totalCobrarCalculado = 0;
 
-                // --- 1. LÓGICA DE COSTOS (PROVEEDOR) ---
+                // Valores formateados si ya existen en la base
+                let strValleCosto = (r.valle_costo !== undefined && r.valle_costo !== "") ? parseInt(r.valle_costo, 10).toLocaleString('es-CO') : "";
+                let strValleMerc = (r.valle_mercancia !== undefined && r.valle_mercancia !== "") ? parseInt(r.valle_mercancia, 10).toLocaleString('es-CO') : "";
+                let strValleFlete = (r.valle_flete !== undefined && r.valle_flete !== "") ? parseInt(r.valle_flete, 10).toLocaleString('es-CO') : "";
+                let strAbonoProv = (r.abono_proveedor !== undefined && r.abono_proveedor !== "") ? parseInt(r.abono_proveedor, 10).toLocaleString('es-CO') : "";
+                let strAbonoCli = (r.abono_cliente !== undefined && r.abono_cliente !== "") ? parseInt(r.abono_cliente, 10).toLocaleString('es-CO') : "";
+
+                // --- 1. LÓGICA DE COSTOS PROVEEDOR ---
                 let htmlCostoCelda = "";
                 if (esRutaValle) {
-                    totalCostoCalculado = parseFloat(r.valle_costo) || 0;
-                    htmlCostoCelda = `<input type="number" step="0.01" id="valle_costo_${r.id_registro}" class="inline-edit" style="border-color:var(--warning);" placeholder="Preguntar costo" value="${r.valle_costo || ''}">`;
+                    totalCostoCalculado = parseInt(r.valle_costo, 10) || 0;
+                    htmlCostoCelda = `<input type="text" id="valle_costo_${r.id_registro}" class="inline-edit" style="border-color:var(--warning);" placeholder="Preguntar costo" value="${strValleCosto}" oninput="formatNumberInput(this); actualizarSaldoProv('${r.id_registro}', 0)">`;
                 } else {
                     if (metaCostos.length > 0) {
                         let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
                         if (cRow) totalCostoCalculado = peso * limpiarMonto(cRow.costo);
                     }
-                    htmlCostoCelda = `<span style="color:var(--warning); font-weight:bold;">$${totalCostoCalculado.toLocaleString('es-CO')}</span>`;
+                    htmlCostoCelda = `<span style="color:var(--warning); font-weight:bold; font-size:0.95rem;">$${totalCostoCalculado.toLocaleString('es-CO')}</span>`;
                 }
 
-                // --- 2. LÓGICA DE PRECIOS (CLIENTE: MERCANCÍA + FLETE) ---
+                // --- 2. LÓGICA DE PRECIOS CLIENTE (Mercancía + Flete) ---
                 let htmlMercanciaCelda = "";
                 let htmlFleteCelda = "";
 
                 if (esRutaValle) {
-                    totalMercanciaCalculado = parseFloat(r.valle_mercancia) || 0;
-                    totalFleteCalculado = parseFloat(r.valle_flete) || 0;
+                    totalMercanciaCalculado = parseInt(r.valle_mercancia, 10) || 0;
+                    totalFleteCalculado = parseInt(r.valle_flete, 10) || 0;
                     totalCobrarCalculado = totalMercanciaCalculado + totalFleteCalculado;
 
-                    htmlMercanciaCelda = `<input type="number" step="0.01" id="valle_merc_${r.id_registro}" class="inline-edit" placeholder="Preguntar merc." value="${r.valle_merc || r.valle_mercancia || ''}">`;
-                    htmlFleteCelda = `<input type="number" step="0.01" id="valle_flete_${r.id_registro}" class="inline-edit" placeholder="Preguntar flete" value="${r.valle_flete || ''}">`;
+                    htmlMercanciaCelda = `<input type="text" id="valle_merc_${r.id_registro}" class="inline-edit" placeholder="Preguntar merc." value="${strValleMerc}" oninput="formatNumberInput(this); actualizarTotalValle('${r.id_registro}')">`;
+                    htmlFleteCelda = `<input type="text" id="valle_flete_${r.id_registro}" class="inline-edit" placeholder="Preguntar flete" value="${strValleFlete}" oninput="formatNumberInput(this); actualizarTotalValle('${r.id_registro}')">`;
                 } else {
                     if (metaPrecios.length > 0) {
                         let pRow = metaPrecios.find(p => {
@@ -525,22 +637,21 @@
                         
                         if (pRow) {
                             totalMercanciaCalculado = peso * limpiarMonto(pRow.precio);
-                            totalFletCalculado = peso * limpiarMonto(pRow.flete);
-                            totalCobrarCalculado = totalMercanciaCalculado + totalFletCalculado;
+                            totalFleteCalculado = peso * limpiarMonto(pRow.flete);
+                            totalCobrarCalculado = totalMercanciaCalculado + totalFleteCalculado;
                         }
                     }
-                    htmlMercanciaCelda = `<span>$${totalMercanciaCalculado.toLocaleString('es-CO')}</span>`;
-                    htmlFleteCelda = `<span>$${totalFletCalculado.toLocaleString('es-CO')}</span>`;
+                    htmlMercanciaCelda = `<span style="font-weight:600;">$${totalMercanciaCalculado.toLocaleString('es-CO')}</span>`;
+                    htmlFleteCelda = `<span style="font-weight:600;">$${totalFleteCalculado.toLocaleString('es-CO')}</span>`;
                 }
 
-                // --- 3. CÁLCULO DE SALDOS CONTABLES ---
-                let abonoProvReal = parseFloat(r.abono_proveedor) || 0;
-                let abonoCliReal = parseFloat(r.abono_cliente) || 0;
+                // --- 3. CÁLCULO DE SALDOS INICIALES ---
+                let abonoProvReal = parseInt(r.abono_proveedor, 10) || 0;
+                let abonoCliReal = parseInt(r.abono_cliente, 10) || 0;
 
                 let saldoProveedor = totalCostoCalculado - abonoProvReal;
                 let saldoCliente = totalCobrarCalculado - abonoCliReal;
 
-                // Las etiquetas de saldos se muestran limpiecitas sin textos raros cuando no hay info aún
                 let htmlSaldoProveedorBadge = "";
                 if (totalCostoCalculado > 0 || abonoProvReal > 0) {
                     if (saldoProveedor <= 0) {
@@ -559,12 +670,13 @@
                     }
                 }
 
-                r.costo_calculado = "$ " + totalCostoCalculado.toLocaleString('es-CO');
+                // Conservar texto limpio para exportaciones a Excel/PDF
+                r.costo_calculado_guia = "$ " + totalCostoCalculado.toLocaleString('es-CO');
                 r.precio_mercancia_calculado = "$ " + totalMercanciaCalculado.toLocaleString('es-CO');
                 r.precio_flete_calculado = "$ " + totalFleteCalculado.toLocaleString('es-CO');
                 r.precio_total_calculado = "$ " + totalCobrarCalculado.toLocaleString('es-CO');
 
-                const imgSoporte = r.url_soporte_cloudinary ? '<a href="' + r.url_soporte_cloudinary + '" target="_blank"><img src="' + r.url_soporte_cloudinary + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;"></a>' : '<span style="color:var(--text-muted);">---</span>';
+                const imgSoporte = r.url_soporte_cloudinary ? `<a href="${r.url_soporte_cloudinary}" target="_blank"><img src="${r.url_soporte_cloudinary}" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;"></a>` : `<span style="color:var(--text-muted);">---</span>`;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -577,27 +689,27 @@
                     
                     <td style="text-align:center;">
                         ${htmlCostoCelda}<br>
-                        <input type="number" id="abono_prov_${r.id_registro}" class="inline-abono" placeholder="Abonar $" value="${r.abono_proveedor || ''}">
-                        ${htmlSaldoProveedorBadge}
+                        <input type="text" id="abono_prov_${r.id_registro}" class="inline-abono" placeholder="Abonar $" value="${strAbonoProv}" oninput="formatNumberInput(this); actualizarSaldoProv('${r.id_registro}', ${esRutaValle ? 0 : totalCostoCalculado})">
+                        <div id="badge_prov_${r.id_registro}">${htmlSaldoProveedorBadge}</div>
                     </td>
 
-                    <td style="text-align:center; font-weight:500;">
+                    <td style="text-align:center;">
                         ${htmlMercanciaCelda}
                     </td>
 
-                    <td style="text-align:center; font-weight:500;">
+                    <td style="text-align:center;">
                         ${htmlFleteCelda}
                     </td>
 
                     <td style="text-align:center;">
-                        <span style="color:var(--success); font-weight:bold;">$${totalCobrarCalculado.toLocaleString('es-CO')}</span><br>
-                        <input type="number" id="abono_cli_${r.id_registro}" class="inline-abono" placeholder="Abonar $" value="${r.abono_cliente || ''}">
-                        ${htmlSaldoClienteBadge}
+                        <span id="total_cobrar_span_${r.id_registro}" style="color:var(--success); font-weight:bold; font-size:0.95rem;">$${totalCobrarCalculado.toLocaleString('es-CO')}</span><br>
+                        <input type="text" id="abono_cli_${r.id_registro}" class="inline-abono" placeholder="Abonar $" value="${strAbonoCli}" oninput="formatNumberInput(this); actualizarSaldoCli('${r.id_registro}', ${esRutaValle ? 0 : totalCobrarCalculado})">
+                        <div id="badge_cli_${r.id_registro}">${htmlSaldoClienteBadge}</div>
                     </td>
 
                     <td style="text-align:center;">
-                        <button class="btn btn-primary" onclick="guardarFilaContable('${r.id_registro}', ${esRutaValle})" style="padding:6px; width:34px; height:34px; border-radius:50%;">
-                            <i data-lucide="save" style="width:14px;height:14px;"></i>
+                        <button class="btn btn-primary" onclick="guardarFilaContable('${r.id_registro}', ${esRutaValle})" style="padding:6px; width:36px; height:36px; border-radius:50%;">
+                            <i data-lucide="save" style="width:16px;height:16px;"></i>
                         </button>
                     </td>
 
@@ -642,7 +754,7 @@
             const datosFormateados = datosEnPantalla.map(r => ({
                 "ID": r.id_registro, "Fecha": formatearFecha(r.fecha_ingreso), "Remisión": r.num_remision, "Movimiento": r.tipo_movimiento,
                 "Proveedor": r.proveedor, "Cliente": r.cliente, "Peso (T)": r.peso, "Procedencia": r.ciudad_procedencia, "Destino": r.ciudad_destino, 
-                "Costo Total": r.costo_calculado, "Abono Proveedor": r.abono_proveedor || 0,
+                "Costo Total": r.costo_calculado_guia, "Abono Proveedor": r.abono_proveedor || 0,
                 "Vlr Mercancía": r.precio_mercancia_calculado, "Vlr Flete": r.precio_flete_calculado, "Total Cobrar": r.precio_total_calculado, "Abono Cliente": r.abono_cliente || 0
             }));
             const hoja = XLSX.utils.json_to_sheet(datosFormateados); const libro = XLSX.utils.book_new();
@@ -654,7 +766,7 @@
             const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'pt', 'a4'); 
             doc.text("Reporte de Control Financiero - Ferrocarbon SAS", 40, 40);
             const columnas = ["ID", "Fecha", "Remisión", "Proveedor", "Cliente", "Costo", "Abono Prov", "Vlr Merc", "Vlr Flet", "Total Cobro", "Abono Cli"];
-            const filas = datosEnPantalla.map(r => [ r.id_registro, formatearFecha(r.fecha_ingreso), r.num_remision, r.proveedor, r.cliente, r.costo_calculado, r.abono_proveedor || 0, r.precio_mercancia_calculado, r.precio_flete_calculado, r.precio_total_calculado, r.abono_cliente || 0 ]);
+            const filas = datosEnPantalla.map(r => [ r.id_registro, formatearFecha(r.fecha_ingreso), r.num_remision, r.proveedor, r.cliente, r.costo_calculado_guia, r.abono_proveedor || 0, r.precio_mercancia_calculado, r.precio_flete_calculado, r.precio_total_calculado, r.abono_cliente || 0 ]);
             doc.autoTable({ head: [columnas], body: filas, startY: 60, theme: 'grid', styles: { fontSize: 6.5, cellPadding: 2 }, headStyles: { fillColor: [59, 130, 246] } });
             doc.save("Reporte_Financiero_Ferrocarbon.pdf");
         }
