@@ -460,7 +460,7 @@
             const btn = document.getElementById('btn-submit');
             btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando...'; lucide.createIcons();
 
-            // --- NUEVA LÓGICA DE PRE-CÁLCULO DE VALORES PARA ALMACENAMIENTO ---
+            // --- LÓGICA CORREGIDA DE PRE-CÁLCULO ---
             const pesoNum = parseFloat(document.getElementById('peso').value) || 0;
             let procedenciaNorm = normalizarTexto(document.getElementById('ciudad_procedencia').value);
             let destinoNorm = normalizarTexto(document.getElementById('ciudad_destino').value);
@@ -468,15 +468,13 @@
             let costoFinalGuardar = 0;
             let precioFinalGuardar = 0;
 
-            // Calcular Costo Proveedor
             if (procedenciaNorm.includes("VALLE")) {
-                costoFinalGuardar = 0; // Fallback / Variable según Don Carlos
+                costoFinalGuardar = 0; 
             } else if (metaCostos.length > 0) {
                 let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
                 if (cRow) costoFinalGuardar = pesoNum * limpiarMonto(cRow.costo);
             }
 
-            // Calcular Precio Cliente (Mercancía + Flete)
             if (metaPrecios.length > 0) {
                 let pRow = metaPrecios.find(p => {
                     let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
@@ -491,7 +489,6 @@
                     precioFinalGuardar = totalMerc + totalFlet;
                 }
             }
-            // -----------------------------------------------------------------
 
             const payload = {
                 action: "write",
@@ -510,8 +507,8 @@
                 url_soporte_cloudinary: urlCloudinaryGlobal, 
                 peso: document.getElementById('peso').value,
                 observaciones: document.getElementById('observaciones').value,
-                costo_abonado: costoFinalGuardar,     // Nuevo campo enviado
-                precio_recibido: precioFinalGuardar   // Nuevo campo enviado
+                costo_abonado: costoFinalGuardar,     
+                precio_recibido: precioFinalGuardar   
             };
 
             fetch(API_URL, { method: "POST", mode: "cors", body: JSON.stringify(payload) })
@@ -567,24 +564,32 @@
                 let procedenciaNorm = normalizarTexto(r.ciudad_procedencia);
                 let destinoNorm = normalizarTexto(r.ciudad_destino);
 
-                // --- VALIDACIÓN CONTABLE: ¿Ya posee el valor estático guardado e inalterable? ---
-                if (r.costo_abonado !== undefined && parseFloat(r.costo_abonado) > 0) {
-                    costoTxt = "$" + parseFloat(r.costo_abonado).toLocaleString('es-CO');
+                // --- LECTURA CORREGIDA DE VALORES EXACTOS EN SHEETS ---
+                if (r.costo_abonado !== undefined && r.costo_abonado !== "") {
+                    let valC = parseFloat(r.costo_abonado);
+                    if(valC === 0 && procedenciaNorm.includes("VALLE")){
+                        costoTxt = "Variable (Valle)";
+                    } else {
+                        costoTxt = "$" + valC.toLocaleString('es-CO');
+                    }
                 } else {
-                    // Fallback analítico dinámico clásico en vivo
-                    if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Preguntar a don Carlos)"; } 
+                    if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Preguntar)"; } 
                     else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
                         let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
                         if (cRow) { costoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
                     }
                 }
 
-                if (r.precio_recibido !== undefined && parseFloat(r.precio_recibido) > 0) {
-                    totalPrecioTxt = "$" + parseFloat(r.precio_recibido).toLocaleString('es-CO');
+                if (r.precio_recibido !== undefined && r.precio_recibido !== "") {
+                    let valP = parseFloat(r.precio_recibido);
+                    if (valP === 0) {
+                        totalPrecioTxt = "Pendiente / $0";
+                    } else {
+                        totalPrecioTxt = "$" + valP.toLocaleString('es-CO');
+                    }
                     precioMercanciaTxt = "Guardado"; 
                     precioFleteTxt = "Guardado";
                 } else {
-                    // Fallback analítico dinámico clásico en vivo
                     if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
                         let pRow = metaPrecios.find(p => {
                             let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
@@ -603,7 +608,6 @@
                     }
                 }
 
-                // Conservación de variables mapeadas para procesos de descargas de reportes
                 r.costo_calculado = costoTxt; 
                 r.precio_total_calculado = totalPrecioTxt;
                 if(precioMercanciaTxt !== "Guardado"){
