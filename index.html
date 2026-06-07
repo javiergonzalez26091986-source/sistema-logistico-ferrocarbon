@@ -63,7 +63,7 @@
         .bg-green { background-color: rgba(16, 185, 129, 0.15); color: var(--success); }
         .bg-orange { background-color: rgba(245, 158, 11, 0.15); color: var(--warning); }
         .table-responsive { width: 100%; overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
-        table { width: 100%; border-collapse: collapse; min-width: 1350px; } /* Expandido para dar espacio perfecto */
+        table { width: 100%; border-collapse: collapse; min-width: 1350px; }
         th, td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; text-align: left; vertical-align: middle; }
         th { background-color: #1e293b; color: var(--text-muted); font-size: 0.70rem; text-transform: uppercase; white-space: nowrap; }
         .filter-bar { background-color: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border-color); justify-content: space-between; }
@@ -80,10 +80,13 @@
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
-        /* Estilos contables dinámicos */
-        .inline-edit { width: 95px; padding: 5px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-weight: bold; }
+        /* Estilos ajustados y más limpios para los campos de la tabla */
+        .inline-edit { width: 110px; padding: 5px; font-size: 0.75rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-weight: bold; }
         .inline-edit:focus { border-color: var(--primary); outline: none; }
+        .inline-edit::placeholder { color: #64748b; font-weight: normal; }
+        
         .inline-abono { width: 95px; padding: 5px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid #94a3b8; background: #ffffff; color: #0f172a; font-weight: bold; margin-top: 3px; }
+        
         .badge-saldado { background-color: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; margin-top: 3px; }
         .text-deuda { font-size: 0.72rem; font-weight: 600; display: inline-block; margin-top: 3px; }
     </style>
@@ -412,7 +415,6 @@
             .then(result => { if (result.success && result.data) { historialDatosGlobal = result.data; renderizarTablaDashboard(historialDatosGlobal); } });
         }
 
-        // FUNCIÓN QUE ENVÍA ABONOS Y VALORES VARIABLES DEL VALLE AL SERVIDOR
         function guardarFilaContable(id_registro, esValle) {
             const btn = event.currentTarget;
             btn.innerHTML = '<i data-lucide="loader-2" class="spinner" style="width:14px;height:14px;"></i>';
@@ -440,8 +442,7 @@
             .then(res => res.json())
             .then(res => {
                 if (res.success) {
-                    notificar("Información financiera guardada para " + id_registro, "success");
-                    // Sincronizar memoria interna local
+                    notificar("Información guardada para " + id_registro, "success");
                     let registroLocal = historialDatosGlobal.find(x => x.id_registro === id_registro);
                     if(registroLocal) {
                         registroLocal.abono_proveedor = abonoProv;
@@ -493,7 +494,7 @@
                 let htmlCostoCelda = "";
                 if (esRutaValle) {
                     totalCostoCalculado = parseFloat(r.valle_costo) || 0;
-                    htmlCostoCelda = `<input type="number" step="0.01" id="valle_costo_${r.id_registro}" class="inline-edit" style="border-color:var(--warning);" placeholder="Digitar $" value="${r.valle_costo || ''}">`;
+                    htmlCostoCelda = `<input type="number" step="0.01" id="valle_costo_${r.id_registro}" class="inline-edit" style="border-color:var(--warning);" placeholder="Preguntar costo" value="${r.valle_costo || ''}">`;
                 } else {
                     if (metaCostos.length > 0) {
                         let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
@@ -511,8 +512,8 @@
                     totalFleteCalculado = parseFloat(r.valle_flete) || 0;
                     totalCobrarCalculado = totalMercanciaCalculado + totalFleteCalculado;
 
-                    htmlMercanciaCelda = `<input type="number" step="0.01" id="valle_merc_${r.id_registro}" class="inline-edit" placeholder="Mercancia $" value="${r.valle_merc || r.valle_mercancia || ''}">`;
-                    htmlFleteCelda = `<input type="number" step="0.01" id="valle_flete_${r.id_registro}" class="inline-edit" placeholder="Flete $" value="${r.valle_flete || ''}">`;
+                    htmlMercanciaCelda = `<input type="number" step="0.01" id="valle_merc_${r.id_registro}" class="inline-edit" placeholder="Preguntar merc." value="${r.valle_merc || r.valle_mercancia || ''}">`;
+                    htmlFleteCelda = `<input type="number" step="0.01" id="valle_flete_${r.id_registro}" class="inline-edit" placeholder="Preguntar flete" value="${r.valle_flete || ''}">`;
                 } else {
                     if (metaPrecios.length > 0) {
                         let pRow = metaPrecios.find(p => {
@@ -532,32 +533,32 @@
                     htmlFleteCelda = `<span>$${totalFletCalculado.toLocaleString('es-CO')}</span>`;
                 }
 
-                // --- 3. CÁLCULO DE SALDOS CONTABLES (CUÁNTO DEBE / CUÁNTO LE DEBEN) ---
+                // --- 3. CÁLCULO DE SALDOS CONTABLES ---
                 let abonoProvReal = parseFloat(r.abono_proveedor) || 0;
                 let abonoCliReal = parseFloat(r.abono_cliente) || 0;
 
                 let saldoProveedor = totalCostoCalculado - abonoProvReal;
                 let saldoCliente = totalCobrarCalculado - abonoCliReal;
 
+                // Las etiquetas de saldos se muestran limpiecitas sin textos raros cuando no hay info aún
                 let htmlSaldoProveedorBadge = "";
-                if (totalCostoCalculado === 0 && esRutaValle && abonoProvReal === 0) {
-                    htmlSaldoProveedorBadge = `<span class="text-muted" style="font-size:0.7rem;">Falta precio jefe</span>`;
-                } else if (saldoProveedor <= 0) {
-                    htmlSaldoProveedorBadge = `<br><span class="badge-saldado">✔ SALDADO</span>`;
-                } else {
-                    htmlSaldoProveedorBadge = `<br><span class="text-deuda" style="color:var(--danger);">Debe: $${saldoProveedor.toLocaleString('es-CO')}</span>`;
+                if (totalCostoCalculado > 0 || abonoProvReal > 0) {
+                    if (saldoProveedor <= 0) {
+                        htmlSaldoProveedorBadge = `<br><span class="badge-saldado">✔ SALDADO</span>`;
+                    } else {
+                        htmlSaldoProveedorBadge = `<br><span class="text-deuda" style="color:var(--danger);">Debe: $${saldoProveedor.toLocaleString('es-CO')}</span>`;
+                    }
                 }
 
                 let htmlSaldoClienteBadge = "";
-                if (totalCobrarCalculado === 0 && esRutaValle && abonoCliReal === 0) {
-                    htmlSaldoClienteBadge = `<span class="text-muted" style="font-size:0.7rem;">Falta precio jefe</span>`;
-                } else if (saldoCliente <= 0) {
-                    htmlSaldoClienteBadge = `<br><span class="badge-saldado">✔ SALDADO</span>`;
-                } else {
-                    htmlSaldoClienteBadge = `<br><span class="text-deuda" style="color:var(--warning);">Le deben: $${saldoCliente.toLocaleString('es-CO')}</span>`;
+                if (totalCobrarCalculado > 0 || abonoCliReal > 0) {
+                    if (saldoCliente <= 0) {
+                        htmlSaldoClienteBadge = `<br><span class="badge-saldado">✔ SALDADO</span>`;
+                    } else {
+                        htmlSaldoClienteBadge = `<br><span class="text-deuda" style="color:var(--warning);">Le deben: $${saldoCliente.toLocaleString('es-CO')}</span>`;
+                    }
                 }
 
-                // Guardado estructurado para descarga de Excel/PDF
                 r.costo_calculado = "$ " + totalCostoCalculado.toLocaleString('es-CO');
                 r.precio_mercancia_calculado = "$ " + totalMercanciaCalculado.toLocaleString('es-CO');
                 r.precio_flete_calculado = "$ " + totalFleteCalculado.toLocaleString('es-CO');
