@@ -81,6 +81,10 @@
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .flatpickr-day.selected { background: var(--primary) !important; border-color: var(--primary) !important; }
         .flatpickr-day:hover { background: var(--border-color) !important; }
+        
+        /* Estilos para inputs en la tabla */
+        .inline-input { width: 90px; padding: 6px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; margin-bottom: 2px;}
+        .inline-input:focus { border-color: var(--primary); }
     </style>
 </head>
 <body>
@@ -208,16 +212,6 @@
                         </div>
                     </div>
                     
-                    <div class="form-row" style="background-color: rgba(59, 130, 246, 0.05); padding: 15px; border-radius: 8px; border: 1px dashed var(--primary); margin-bottom: 12px;">
-                        <div class="form-group">
-                            <label for="costo_abonado" style="color: var(--warning);">Abono Proveedor (Costo $)</label>
-                            <input type="number" step="0.01" id="costo_abonado" placeholder="Ej: 50000">
-                        </div>
-                        <div class="form-group">
-                            <label for="precio_recibido" style="color: var(--success);">Abono Cliente (Precio $)</label>
-                            <input type="number" step="0.01" id="precio_recibido" placeholder="Ej: 120000">
-                        </div>
-                    </div>
                     <div class="form-group" style="margin-bottom: 15px;">
                         <label for="observaciones">Observaciones</label>
                         <textarea id="observaciones" rows="2" placeholder="Texto extraído por OCR..."></textarea>
@@ -261,14 +255,17 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>ID</th><th>Fecha</th><th>Remisión/Mov</th><th>Proveedor</th><th>Cliente</th>
-                            <th>Peso/Vol</th><th>Ruta</th><th style="color:var(--warning);">Costo Origen</th>
-                            <th>Vlr Mercancía</th><th>Vlr Flete</th><th style="color:var(--success);">Total Cobrar</th>
+                            <th>ID / Fecha</th><th>Remisión</th><th>Proveedor</th><th>Cliente</th>
+                            <th>Peso/Ruta</th>
+                            <!-- SECCIÓN MODIFICADA: Costo, Precio y Botón Guardar -->
+                            <th style="color:var(--warning); text-align:center;">Costo Origen</th>
+                            <th style="color:var(--success); text-align:center;">Total Cobrar</th>
+                            <th style="text-align:center;">Acción</th>
                             <th style="text-align:center;">Soporte</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-registros">
-                        <tr><td colspan="12" style="text-align:center; padding:30px; color:var(--text-muted);">Sincronice la base de datos para ver los reportes financieros.</td></tr>
+                        <tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-muted);">Sincronice la base de datos para ver los reportes financieros.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -450,63 +447,9 @@
 
         function enviarFormulario(e) {
             e.preventDefault();
-            function validarExistencia(idInput, idDatalist, nombreCampo) {
-                const val = document.getElementById(idInput).value.trim();
-                const datalist = document.getElementById(idDatalist);
-                if (!datalist) return true;
-                const opciones = Array.from(datalist.options).map(o => o.value);
-                if (val !== "" && !opciones.includes(val)) {
-                    notificar("Error: '" + val + "' no existe. Agregue primero el " + nombreCampo + " en Sheets.", "error");
-                    document.getElementById(idInput).style.borderColor = "var(--danger)"; document.getElementById(idInput).focus(); return false;
-                }
-                document.getElementById(idInput).style.borderColor = "var(--border-color)"; return true;
-            }
-
-            if (!validarExistencia('ciudad_procedencia', 'lista-lugares-despacho', 'Lugar de Despacho')) return;
-            if (!validarExistencia('proveedor', 'lista-proveedores', 'Proveedor')) return;
-            if (!validarExistencia('ciudad_destino', 'lista-ciudades-procedencia', 'Ciudad de Procedencia')) return;
-            if (!validarExistencia('cliente', 'lista-clientes', 'Cliente')) return;
-
+            
             const btn = document.getElementById('btn-submit');
             btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando...'; lucide.createIcons();
-
-            // TOMAR LOS VALORES MANUALES DEL USUARIO (O SI ESTÁN VACÍOS, CALCULARLOS)
-            const pesoNum = parseFloat(document.getElementById('peso').value) || 0;
-            let procedenciaNorm = normalizarTexto(document.getElementById('ciudad_procedencia').value);
-            let destinoNorm = normalizarTexto(document.getElementById('ciudad_destino').value);
-            
-            let costoCalculado = 0;
-            let precioCalculado = 0;
-
-            // Lógica de respaldo por si lo dejan en blanco
-            if (procedenciaNorm.includes("VALLE")) {
-                costoCalculado = 0; 
-            } else if (metaCostos.length > 0) {
-                let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
-                if (cRow) costoCalculado = pesoNum * limpiarMonto(cRow.costo);
-            }
-
-            if (metaPrecios.length > 0) {
-                let pRow = metaPrecios.find(p => {
-                    let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
-                    return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
-                });
-                if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
-                if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
-                
-                if (pRow) {
-                    let totalMerc = pesoNum * limpiarMonto(pRow.precio);
-                    let totalFlet = pesoNum * limpiarMonto(pRow.flete);
-                    precioCalculado = totalMerc + totalFlet;
-                }
-            }
-
-            // LEEMOS LO QUE DIGITÓ EL USUARIO. SI ESTÁ VACÍO (isNaN), USAMOS EL AUTO-CALCULADO
-            let manualCosto = parseFloat(document.getElementById('costo_abonado').value);
-            let manualPrecio = parseFloat(document.getElementById('precio_recibido').value);
-
-            let costoFinalGuardar = !isNaN(manualCosto) ? manualCosto : costoCalculado;
-            let precioFinalGuardar = !isNaN(manualPrecio) ? manualPrecio : precioCalculado;
 
             const payload = {
                 action: "write",
@@ -524,9 +467,8 @@
                 cliente: document.getElementById('cliente').value,
                 url_soporte_cloudinary: urlCloudinaryGlobal, 
                 peso: document.getElementById('peso').value,
-                observaciones: document.getElementById('observaciones').value,
-                costo_abonado: costoFinalGuardar,     
-                precio_recibido: precioFinalGuardar   
+                observaciones: document.getElementById('observaciones').value
+                // Los abonos no se envían aquí, se dejan en blanco para llenar en el Dashboard.
             };
 
             fetch(API_URL, { method: "POST", mode: "cors", body: JSON.stringify(payload) })
@@ -555,11 +497,51 @@
 
         function cargarHistorialCompleto() {
             const tBody = document.getElementById('tabla-registros');
-            tBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:20px;"><i data-lucide="loader-2" class="spinner"></i> Cargando base de datos contable...</td></tr>';
+            tBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;"><i data-lucide="loader-2" class="spinner"></i> Cargando base de datos contable...</td></tr>';
             lucide.createIcons();
             fetch(API_URL + "?action=read", { method: "GET", mode: "cors" })
             .then(res => res.json())
             .then(result => { if (result.success && result.data) { historialDatosGlobal = result.data; renderizarTablaDashboard(historialDatosGlobal); } });
+        }
+
+        // --- NUEVA FUNCIÓN: PARA GUARDAR LOS ABONOS DIGITADOS EN EL DASHBOARD ---
+        function guardarAbonos(id_registro) {
+            const btn = event.currentTarget;
+            const inputCosto = document.getElementById('costo_' + id_registro).value;
+            const inputPrecio = document.getElementById('precio_' + id_registro).value;
+            
+            btn.innerHTML = '<i data-lucide="loader-2" class="spinner" style="width:16px;height:16px;"></i>';
+            lucide.createIcons();
+
+            fetch(API_URL, {
+                method: "POST", mode: "cors",
+                body: JSON.stringify({
+                    action: "updateFinanzas",
+                    id_registro: id_registro,
+                    costo_abonado: inputCosto,
+                    precio_recibido: inputPrecio
+                })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    notificar("Finanzas actualizadas para " + id_registro, "success");
+                    btn.innerHTML = '<i data-lucide="check" style="width:16px;height:16px;"></i>';
+                    btn.classList.replace('btn-primary', 'btn-success');
+                    
+                    // Actualiza los datos en la memoria local para que al buscar/filtrar no se borren
+                    let reg = historialDatosGlobal.find(x => x.id_registro === id_registro);
+                    if (reg) {
+                        reg.costo_abonado = inputCosto;
+                        reg.precio_recibido = inputPrecio;
+                    }
+                } else {
+                    notificar("Error al guardar.", "error");
+                    btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i>';
+                }
+            })
+            .catch(() => { btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i>'; })
+            .finally(() => lucide.createIcons());
         }
 
         function renderizarTablaDashboard(datosRender) {
@@ -569,7 +551,7 @@
             let totalV = 0, ingresos = 0;
             
             if (datosRender.length === 0) {
-                tBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px;">Ningún registro coincide.</td></tr>'; return;
+                tBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px;">Ningún registro coincide.</td></tr>'; return;
             }
 
             datosRender.forEach(r => {
@@ -578,73 +560,76 @@
                 totalV += v;
                 if(r.tipo_movimiento === "INGRESO") ingresos++;
 
-                let costoTxt = "Sin registro", precioMercanciaTxt = "Sin registro", precioFleteTxt = "Sin registro", totalPrecioTxt = "Sin registro";
                 let procedenciaNorm = normalizarTexto(r.ciudad_procedencia);
                 let destinoNorm = normalizarTexto(r.ciudad_destino);
 
-                if (r.costo_abonado !== undefined && r.costo_abonado !== "") {
-                    let valC = parseFloat(r.costo_abonado);
-                    if(valC === 0 && procedenciaNorm.includes("VALLE")){
-                        costoTxt = "Variable (Valle)";
-                    } else {
-                        costoTxt = "$" + valC.toLocaleString('es-CO');
-                    }
-                } else {
-                    if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable (Preguntar)"; } 
-                    else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
-                        let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
-                        if (cRow) { costoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
+                // --- CALCULO DE SUGERENCIAS AUTOMÁTICAS POR SI EL USUARIO NO RECUERDA EL COSTO ---
+                let costoSugeridoTxt = "---", precioSugeridoTxt = "---";
+                
+                // Sugerido Costo
+                if (procedenciaNorm.includes("VALLE")) { costoSugeridoTxt = "Variable"; } 
+                else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
+                    let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
+                    if (cRow) { costoSugeridoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
+                }
+
+                // Sugerido Precio
+                if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
+                    let pRow = metaPrecios.find(p => {
+                        let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
+                        return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
+                    });
+                    if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
+                    if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
+                    
+                    if (pRow) {
+                        let totalMerc = peso * limpiarMonto(pRow.precio);
+                        let totalFlet = peso * limpiarMonto(pRow.flete);
+                        precioSugeridoTxt = "$" + (totalMerc + totalFlet).toLocaleString('es-CO');
                     }
                 }
 
-                if (r.precio_recibido !== undefined && r.precio_recibido !== "") {
-                    let valP = parseFloat(r.precio_recibido);
-                    if (valP === 0) {
-                        totalPrecioTxt = "Pendiente / $0";
-                    } else {
-                        totalPrecioTxt = "$" + valP.toLocaleString('es-CO');
-                    }
-                    precioMercanciaTxt = "Guardado"; 
-                    precioFleteTxt = "Guardado";
-                } else {
-                    if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
-                        let pRow = metaPrecios.find(p => {
-                            let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
-                            return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
-                        });
-                        if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
-                        if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
-                        
-                        if (pRow) {
-                            let totalMerc = peso * limpiarMonto(pRow.precio);
-                            let totalFlet = peso * limpiarMonto(pRow.flete);
-                            precioMercanciaTxt = "$" + totalMerc.toLocaleString('es-CO');
-                            precioFleteTxt = "$" + totalFlet.toLocaleString('es-CO');
-                            totalPrecioTxt = "$" + (totalMerc + totalFlet).toLocaleString('es-CO');
-                        }
-                    }
-                }
-
-                r.costo_calculado = costoTxt; 
-                r.precio_total_calculado = totalPrecioTxt;
-                if(precioMercanciaTxt !== "Guardado"){
-                    r.precio_mercancia_calculado = precioMercanciaTxt; 
-                    r.precio_flete_calculado = precioFleteTxt;
-                } else {
-                    r.precio_mercancia_calculado = "Incluido"; 
-                    r.precio_flete_calculado = "Incluido";
-                }
+                // Guardado en memoria para exportar a PDF y Excel
+                r.costo_calculado = (r.costo_abonado !== undefined && r.costo_abonado !== "") ? "$" + parseFloat(r.costo_abonado).toLocaleString('es-CO') : "Sin digitar";
+                r.precio_total_calculado = (r.precio_recibido !== undefined && r.precio_recibido !== "") ? "$" + parseFloat(r.precio_recibido).toLocaleString('es-CO') : "Sin digitar";
 
                 const imgSoporte = r.url_soporte_cloudinary ? '<a href="' + r.url_soporte_cloudinary + '" target="_blank"><img src="' + r.url_soporte_cloudinary + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;"></a>' : '<span style="color:var(--text-muted);">---</span>';
 
+                // --- NUEVO FORMATO DE FILAS CON CASILLAS DE INPUT INTEGRADOS ---
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td>' + r.id_registro + '</td><td>' + formatearFecha(r.fecha_ingreso) + '</td><td><span style="font-weight:bold; color:var(--primary);">' + r.num_remision + '</span><br><small style="color:var(--text-muted);">' + r.tipo_movimiento + '</small></td><td>' + r.proveedor + '</td><td>' + r.cliente + '</td><td>' + peso + ' T<br><small>' + v + ' M³</small></td><td><small>' + r.ciudad_procedencia + '<br>➔ ' + r.ciudad_destino + '</small></td><td style="color:var(--warning); font-weight:bold;">' + costoTxt + '</td><td>' + precioMercanciaTxt + '</td><td>' + precioFleteTxt + '</td><td style="color:var(--success); font-weight:bold;">' + totalPrecioTxt + '</td><td style="text-align:center;">' + imgSoporte + '</td>'; 
+                tr.innerHTML = `
+                    <td><small>${r.id_registro}</small><br>${formatearFecha(r.fecha_ingreso)}</td>
+                    <td><span style="font-weight:bold; color:var(--primary);">${r.num_remision}</span><br><small style="color:var(--text-muted);">${r.tipo_movimiento}</small></td>
+                    <td>${r.proveedor}</td>
+                    <td>${r.cliente}</td>
+                    <td><small>${peso} T | ${v} M³</small><br><small>${r.ciudad_procedencia} ➔ ${r.ciudad_destino}</small></td>
+                    
+                    <!-- CAMPO EDITABLE DE COSTO -->
+                    <td style="text-align:center;">
+                        <input type="number" id="costo_${r.id_registro}" class="inline-input" placeholder="Digitar" value="${r.costo_abonado}">
+                        <br><small style="color:var(--warning); font-size:0.65rem;">Sug: ${costoSugeridoTxt}</small>
+                    </td>
+
+                    <!-- CAMPO EDITABLE DE PRECIO -->
+                    <td style="text-align:center;">
+                        <input type="number" id="precio_${r.id_registro}" class="inline-input" placeholder="Digitar" value="${r.precio_recibido}">
+                        <br><small style="color:var(--success); font-size:0.65rem;">Sug: ${precioSugeridoTxt}</small>
+                    </td>
+                    
+                    <!-- BOTÓN GUARDAR -->
+                    <td style="text-align:center;">
+                        <button class="btn btn-primary" onclick="guardarAbonos('${r.id_registro}')" style="padding:6px 10px; width:auto;"><i data-lucide="save" style="width:16px;height:16px;"></i></button>
+                    </td>
+
+                    <td style="text-align:center;">${imgSoporte}</td>
+                `;
                 tBody.appendChild(tr);
             });
 
             document.getElementById('dash-total').innerText = datosRender.length;
             document.getElementById('dash-ingresos').innerText = ingresos;
             document.getElementById('dash-volumen').innerText = totalV.toFixed(1) + " Mts³";
+            lucide.createIcons();
         }
 
         function aplicarFiltros() {
@@ -677,7 +662,7 @@
             const datosFormateados = datosEnPantalla.map(r => ({
                 "ID": r.id_registro, "Fecha": formatearFecha(r.fecha_ingreso), "Remisión": r.num_remision, "Movimiento": r.tipo_movimiento,
                 "Proveedor": r.proveedor, "Cliente": r.cliente, "Peso (T)": r.peso, "Volumen (M3)": r.medicion_mts3, "Procedencia": r.ciudad_procedencia,
-                "Destino": r.ciudad_destino, "Costo Origen": r.costo_calculado, "Valor Mercancía": r.precio_mercancia_calculado, "Valor Flete": r.precio_flete_calculado,
+                "Destino": r.ciudad_destino, "Costo Origen": r.costo_calculado, 
                 "Total a Cobrar": r.precio_total_calculado, "Soporte Link": r.url_soporte_cloudinary
             }));
             const hoja = XLSX.utils.json_to_sheet(datosFormateados); const libro = XLSX.utils.book_new();
@@ -688,8 +673,8 @@
             if (datosEnPantalla.length === 0) return;
             const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'pt', 'a4'); 
             doc.text("Reporte de Control Financiero - Ferrocarbon SAS", 40, 40);
-            const columnas = ["ID", "Fecha", "Remisión", "Proveedor", "Cliente", "Peso(T)", "Costo Origen", "Valor Mercancía", "Valor Flete", "Total Cobro"];
-            const filas = datosEnPantalla.map(r => [ r.id_registro, formatearFecha(r.fecha_ingreso), r.num_remision, r.proveedor, r.cliente, r.peso, r.costo_calculado, r.precio_mercancia_calculado, r.precio_flete_calculado, r.precio_total_calculado ]);
+            const columnas = ["ID", "Fecha", "Remisión", "Proveedor", "Cliente", "Peso(T)", "Costo Origen", "Total Cobro"];
+            const filas = datosEnPantalla.map(r => [ r.id_registro, formatearFecha(r.fecha_ingreso), r.num_remision, r.proveedor, r.cliente, r.peso, r.costo_calculado, r.precio_total_calculado ]);
             doc.autoTable({ head: [columnas], body: filas, startY: 60, theme: 'grid', styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [59, 130, 246] } });
             doc.save("Reporte_Financiero_Ferrocarbon.pdf");
         }
