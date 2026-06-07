@@ -63,7 +63,7 @@
         .bg-green { background-color: rgba(16, 185, 129, 0.15); color: var(--success); }
         .bg-orange { background-color: rgba(245, 158, 11, 0.15); color: var(--warning); }
         .table-responsive { width: 100%; overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
-        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1350px; } /* Expandido para dar espacio perfecto */
         th, td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; text-align: left; vertical-align: middle; }
         th { background-color: #1e293b; color: var(--text-muted); font-size: 0.70rem; text-transform: uppercase; white-space: nowrap; }
         .filter-bar { background-color: var(--bg-dark); padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 15px; border: 1px solid var(--border-color); justify-content: space-between; }
@@ -79,12 +79,13 @@
         .ocr-progress-fill { height: 100%; background-color: var(--primary); width: 0%; transition: width 0.1s; }
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .flatpickr-day.selected { background: var(--primary) !important; border-color: var(--primary) !important; }
-        .flatpickr-day:hover { background: var(--border-color) !important; }
         
-        /* Cajas de texto para los abonos en la tabla */
-        .input-abono { width: 100px; padding: 6px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: #f8fafc; color: #0f172a; margin-top: 5px; font-weight: bold;}
-        .input-abono:focus { border-color: var(--primary); outline: none; }
+        /* Estilos contables dinámicos */
+        .inline-edit { width: 95px; padding: 5px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-weight: bold; }
+        .inline-edit:focus { border-color: var(--primary); outline: none; }
+        .inline-abono { width: 95px; padding: 5px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid #94a3b8; background: #ffffff; color: #0f172a; font-weight: bold; margin-top: 3px; }
+        .badge-saldado { background-color: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; margin-top: 3px; }
+        .text-deuda { font-size: 0.72rem; font-weight: 600; display: inline-block; margin-top: 3px; }
     </style>
 </head>
 <body>
@@ -211,7 +212,6 @@
                             <input type="text" id="cliente" list="lista-clientes" required autocomplete="off">
                         </div>
                     </div>
-                    
                     <div class="form-group" style="margin-bottom: 15px;">
                         <label for="observaciones">Observaciones</label>
                         <textarea id="observaciones" rows="2" placeholder="Texto extraído por OCR..."></textarea>
@@ -256,25 +256,21 @@
                     <thead>
                         <tr>
                             <th>ID / Fecha</th>
-                            <th>Remisión</th>
+                            <th>Remisión/Mov</th>
                             <th>Proveedor</th>
                             <th>Cliente</th>
-                            <th>Peso/Ruta</th>
-                            <!-- NUEVA ORGANIZACIÓN: Costo Total y Debajo el Abono -->
-                            <th style="text-align:center;">
-                                <span style="color:var(--warning);">Costo Total (Guía)</span><br>
-                                <span style="color:var(--text-main);">Abono Proveedor</span>
-                            </th>
-                            <th style="text-align:center;">
-                                <span style="color:var(--success);">Precio Total (Guía)</span><br>
-                                <span style="color:var(--text-main);">Abono Cliente</span>
-                            </th>
+                            <th>Peso/Vol</th>
+                            <th>Ruta</th>
+                            <th style="color:var(--warning); text-align:center;">Costo Origen</th>
+                            <th style="text-align:center;">Vlr Mercancía</th>
+                            <th style="text-align:center;">Vlr Flete</th>
+                            <th style="color:var(--success); text-align:center;">Total Cobrar</th>
                             <th style="text-align:center;">Guardar</th>
                             <th style="text-align:center;">Soporte</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-registros">
-                        <tr><td colspan="9" style="text-align:center; padding:30px; color:var(--text-muted);">Sincronice la base de datos para ver los reportes financieros.</td></tr>
+                        <tr><td colspan="12" style="text-align:center; padding:30px; color:var(--text-muted);">Sincronice la base de datos para ver los reportes financieros.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -357,106 +353,13 @@
             setTimeout(() => { if (t.parentElement) t.remove(); }, tipo === 'error' ? 12000 : 4000);
         }
 
-        document.getElementById('num_remision').addEventListener('change', function() {
-            const val = this.value.trim().toUpperCase();
-            if (val && metaRemisiones.includes(val)) {
-                notificar("🚨 ¡CUIDADO! La Remisión ya fue registrada previamente.", "error");
-                this.style.borderColor = "var(--danger)"; this.value = ""; 
-            } else { this.style.borderColor = "var(--border-color)"; }
-        });
-
-        document.getElementById('tiquete_bascula').addEventListener('change', function() {
-            const val = this.value.trim().toUpperCase();
-            if (val && metaTiquetes.includes(val)) {
-                notificar("🚨 ¡CUIDADO! El Tiquete ya fue registrado previamente.", "error");
-                this.style.borderColor = "var(--danger)"; this.value = ""; 
-            } else { this.style.borderColor = "var(--border-color)"; }
-        });
-
-        document.getElementById('ciudad_procedencia').addEventListener('change', function() {
-            const ciudadSel = this.value.trim().toUpperCase();
-            if (metaProveedores.length > 0 && typeof metaProveedores[0] === 'object') {
-                const filtrados = metaProveedores.filter(p => p.ciudad && p.ciudad.toUpperCase() === ciudadSel).map(p => p.proveedor);
-                construirOpcionesDatalist("lista-proveedores", filtrados.length > 0 ? filtrados : metaProveedores.map(p => p.proveedor));
-            }
-            const inputMts3 = document.getElementById('medicion_mts3');
-            if (ciudadSel.includes('VALLE')) {
-                inputMts3.disabled = false;
-            } else {
-                inputMts3.disabled = true; inputMts3.value = ''; document.getElementById('peso').value = ''; 
-            }
-        });
-
-        document.getElementById('medicion_mts3').addEventListener('input', function() {
-            const FACTOR_CONVERSION = 0.85; 
-            const mts3 = parseFloat(this.value);
-            const inputPeso = document.getElementById('peso');
-            if (!isNaN(mts3)) { inputPeso.value = (mts3 * FACTOR_CONVERSION).toFixed(2); } else { inputPeso.value = ''; }
-        });
-
-        function subirImagenACloudinary(fileObject) {
-            const btnSubmit = document.getElementById('btn-submit');
-            btnSubmit.disabled = true; btnSubmit.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando soporte...'; lucide.createIcons();
-            const formData = new FormData();
-            formData.append('file', fileObject);
-            formData.append('upload_preset', UPLOAD_PRESET);
-
-            fetch('https://api.cloudinary.com/v1_1/' + CLOUD_NAME + '/image/upload', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => { if (data.secure_url) { urlCloudinaryGlobal = data.secure_url; notificar("Soporte digital alojado en la nube.", "success"); } })
-            .finally(() => { btnSubmit.disabled = false; btnSubmit.innerHTML = '<i data-lucide="save"></i> Registrar en Google Sheets'; lucide.createIcons(); });
-        }
-
-        const fileInputCam = document.getElementById('file-input-camera');
-        const fileInputGal = document.getElementById('file-input-gallery');
-        const cameraBox = document.getElementById('camera-box');
-        
-        function procesarImagenEscogida(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            subirImagenACloudinary(file);
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                cameraBox.innerHTML = '<img src="' + evt.target.result + '">';
-                document.getElementById('ocr-progress-container').style.display = 'block';
-                Tesseract.recognize(file, 'spa', {
-                    logger: m => { if(m.status === 'recognizing text') document.getElementById('ocr-progress-fill').style.width = Math.round(m.progress * 100) + '%'; }
-                }).then(({ data: { text } }) => {
-                    document.getElementById('ocr-progress-container').style.display = 'none';
-                    mapearTextoOcrAFormulario(text);
-                });
-            };
-            reader.readAsDataURL(file);
-        }
-
-        if (fileInputCam) fileInputCam.addEventListener('change', procesarImagenEscogida);
-        if (fileInputGal) fileInputGal.addEventListener('change', procesarImagenEscogida);
-
         function normalizarTexto(cadena) {
             if (!cadena) return "";
             return String(cadena).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
         }
 
-        function mapearTextoOcrAFormulario(texto) {
-            document.getElementById('observaciones').value = texto;
-            const up = texto.toUpperCase();
-            
-            let numMatch = up.match(/(?:REMISI[OÓ]N|N[O°]\.?)\s*(\d+)/);
-            if (numMatch) { let el = document.getElementById('num_remision'); el.value = numMatch[1]; el.dispatchEvent(new Event('change')); }
-            
-            let placaMatch = up.match(/([A-Z]{3})\s*[-_]?\s*(\d{3})/);
-            if (placaMatch) document.getElementById('placa_vehiculo').value = placaMatch[1] + ' ' + placaMatch[2];
-            
-            let mtsMatch = up.match(/(\d+(Y\.\d+)?)\s*(?:MTS|MTS3|M³)/);
-            if (mtsMatch) {
-                let el = document.getElementById('medicion_mts3');
-                if(!el.disabled) { el.value = mtsMatch[1]; el.dispatchEvent(new Event('input')); }
-            }
-        }
-
         function enviarFormulario(e) {
             e.preventDefault();
-            
             const btn = document.getElementById('btn-submit');
             btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="spinner"></i> Guardando...'; lucide.createIcons();
 
@@ -484,11 +387,8 @@
             .then(res => {
                 if(res.success) {
                     notificar("¡Remisión guardada con éxito!", "success");
-                    if(payload.num_remision) metaRemisiones.push(payload.num_remision.toUpperCase());
-                    if(payload.tiquete_bascula) metaTiquetes.push(payload.tiquete_bascula.toUpperCase());
                     document.getElementById('logistics-form').reset();
                     document.getElementById('fecha_ingreso').value = new Date().toISOString().substring(0, 10);
-                    cameraBox.innerHTML = '<i data-lucide="image-up" style="width:40px; height:40px;"></i><p>No se ha cargado remisión</p>';
                     urlCloudinaryGlobal = ""; 
                 }
             })
@@ -505,56 +405,63 @@
 
         function cargarHistorialCompleto() {
             const tBody = document.getElementById('tabla-registros');
-            tBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;"><i data-lucide="loader-2" class="spinner"></i> Cargando base de datos contable...</td></tr>';
+            tBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:20px;"><i data-lucide="loader-2" class="spinner"></i> Cargando base de datos contable...</td></tr>';
             lucide.createIcons();
             fetch(API_URL + "?action=read", { method: "GET", mode: "cors" })
             .then(res => res.json())
             .then(result => { if (result.success && result.data) { historialDatosGlobal = result.data; renderizarTablaDashboard(historialDatosGlobal); } });
         }
 
-        // --- FUNCIÓN QUE ENVÍA LOS ABONOS DIGITADOS A GOOGLE SHEETS ---
-        function guardarAbonos(id_registro) {
+        // FUNCIÓN QUE ENVÍA ABONOS Y VALORES VARIABLES DEL VALLE AL SERVIDOR
+        function guardarFilaContable(id_registro, esValle) {
             const btn = event.currentTarget;
-            const inputCostoProv = document.getElementById('abono_prov_' + id_registro).value;
-            const inputAbonoCli = document.getElementById('abono_cli_' + id_registro).value;
-            
-            btn.innerHTML = '<i data-lucide="loader-2" class="spinner" style="width:16px;height:16px;"></i>';
+            btn.innerHTML = '<i data-lucide="loader-2" class="spinner" style="width:14px;height:14px;"></i>';
             lucide.createIcons();
+
+            let abonoProv = document.getElementById('abono_prov_' + id_registro).value || 0;
+            let abonoCli = document.getElementById('abono_cli_' + id_registro).value || 0;
+            
+            let valleCosto = esValle ? (document.getElementById('valle_costo_' + id_registro).value || 0) : "";
+            let valleMerc = esValle ? (document.getElementById('valle_merc_' + id_registro).value || 0) : "";
+            let valleFlet = esValle ? (document.getElementById('valle_flete_' + id_registro).value || 0) : "";
 
             fetch(API_URL, {
                 method: "POST", mode: "cors",
                 body: JSON.stringify({
                     action: "updateFinanzas",
                     id_registro: id_registro,
-                    abono_proveedor: inputCostoProv,
-                    abono_cliente: inputAbonoCli
+                    abono_proveedor: abonoProv,
+                    abono_cliente: abonoCli,
+                    valle_costo: valleCosto,
+                    valle_mercancia: valleMerc,
+                    valle_flete: valleFlet
                 })
             })
             .then(res => res.json())
             .then(res => {
                 if (res.success) {
-                    notificar("Abonos guardados correctamente.", "success");
-                    btn.innerHTML = '<i data-lucide="check" style="width:16px;height:16px;"></i>';
-                    btn.classList.replace('btn-primary', 'btn-success');
-                    
-                    // Actualizamos la memoria para que los filtros no los borren
-                    let reg = historialDatosGlobal.find(x => x.id_registro === id_registro);
-                    if (reg) {
-                        reg.abono_proveedor = inputCostoProv;
-                        reg.abono_cliente = inputAbonoCli;
+                    notificar("Información financiera guardada para " + id_registro, "success");
+                    // Sincronizar memoria interna local
+                    let registroLocal = historialDatosGlobal.find(x => x.id_registro === id_registro);
+                    if(registroLocal) {
+                        registroLocal.abono_proveedor = abonoProv;
+                        registroLocal.abono_cliente = abonoCli;
+                        if(esValle) {
+                            registroLocal.valle_costo = valleCosto;
+                            registroLocal.valle_mercancia = valleMerc;
+                            registroLocal.valle_flete = valleFlet;
+                        }
                     }
-                    setTimeout(() => {
-                        btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i>';
-                        btn.classList.replace('btn-success', 'btn-primary');
-                        lucide.createIcons();
-                    }, 2000);
+                    renderizarTablaDashboard(historialDatosGlobal);
                 } else {
-                    notificar("Error al guardar.", "error");
-                    btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i>';
+                    notificar("No se pudo guardar la información.", "error");
                 }
             })
-            .catch(() => { btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i>'; })
-            .finally(() => lucide.createIcons());
+            .catch(() => {
+                notificar("Error de red al intentar guardar.", "error");
+                btn.innerHTML = '<i data-lucide="save" style="width:14px;height:14px;"></i>';
+                lucide.createIcons();
+            });
         }
 
         function renderizarTablaDashboard(datosRender) {
@@ -564,7 +471,7 @@
             let totalV = 0, ingresos = 0;
             
             if (datosRender.length === 0) {
-                tBody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:30px;">Ningún registro coincide.</td></tr>'; return;
+                tBody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:30px;">Ningún registro coincide.</td></tr>'; return;
             }
 
             datosRender.forEach(r => {
@@ -575,60 +482,122 @@
 
                 let procedenciaNorm = normalizarTexto(r.ciudad_procedencia);
                 let destinoNorm = normalizarTexto(r.ciudad_destino);
+                let esRutaValle = procedenciaNorm.includes("VALLE") || destinoNorm.includes("VALLE");
 
-                // --- 1. CÁLCULO DINÁMICO DEL COSTO Y PRECIO TOTAL (GUÍA INTOCABLE) ---
-                let costoTxt = "Sin registro", totalPrecioTxt = "Sin registro";
-                
-                // Costo
-                if (procedenciaNorm.includes("VALLE")) { costoTxt = "Variable"; } 
-                else if (metaCostos.length > 0 && typeof metaCostos[0] === 'object') {
-                    let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
-                    if (cRow) { costoTxt = "$" + (peso * limpiarMonto(cRow.costo)).toLocaleString('es-CO'); }
-                }
+                let totalCostoCalculado = 0;
+                let totalMercanciaCalculado = 0;
+                let totalFleteCalculado = 0;
+                let totalCobrarCalculado = 0;
 
-                // Precio
-                if (metaPrecios.length > 0 && typeof metaPrecios[0] === 'object') {
-                    let pRow = metaPrecios.find(p => {
-                        let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
-                        return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
-                    });
-                    if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
-                    if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
-                    
-                    if (pRow) {
-                        let totalMerc = peso * limpiarMonto(pRow.precio);
-                        let totalFlet = peso * limpiarMonto(pRow.flete);
-                        totalPrecioTxt = "$" + (totalMerc + totalFlet).toLocaleString('es-CO');
+                // --- 1. LÓGICA DE COSTOS (PROVEEDOR) ---
+                let htmlCostoCelda = "";
+                if (esRutaValle) {
+                    totalCostoCalculado = parseFloat(r.valle_costo) || 0;
+                    htmlCostoCelda = `<input type="number" step="0.01" id="valle_costo_${r.id_registro}" class="inline-edit" style="border-color:var(--warning);" placeholder="Digitar $" value="${r.valle_costo || ''}">`;
+                } else {
+                    if (metaCostos.length > 0) {
+                        let cRow = metaCostos.find(c => c.origen && normalizarTexto(c.origen) === procedenciaNorm);
+                        if (cRow) totalCostoCalculado = peso * limpiarMonto(cRow.costo);
                     }
+                    htmlCostoCelda = `<span style="color:var(--warning); font-weight:bold;">$${totalCostoCalculado.toLocaleString('es-CO')}</span>`;
                 }
 
-                // Conservar para exportación
-                r.costo_calculado_guia = costoTxt;
-                r.precio_calculado_guia = totalPrecioTxt;
+                // --- 2. LÓGICA DE PRECIOS (CLIENTE: MERCANCÍA + FLETE) ---
+                let htmlMercanciaCelda = "";
+                let htmlFleteCelda = "";
+
+                if (esRutaValle) {
+                    totalMercanciaCalculado = parseFloat(r.valle_mercancia) || 0;
+                    totalFleteCalculado = parseFloat(r.valle_flete) || 0;
+                    totalCobrarCalculado = totalMercanciaCalculado + totalFleteCalculado;
+
+                    htmlMercanciaCelda = `<input type="number" step="0.01" id="valle_merc_${r.id_registro}" class="inline-edit" placeholder="Mercancia $" value="${r.valle_merc || r.valle_mercancia || ''}">`;
+                    htmlFleteCelda = `<input type="number" step="0.01" id="valle_flete_${r.id_registro}" class="inline-edit" placeholder="Flete $" value="${r.valle_flete || ''}">`;
+                } else {
+                    if (metaPrecios.length > 0) {
+                        let pRow = metaPrecios.find(p => {
+                            let pDest = normalizarTexto(p.destino), pProc = normalizarTexto(p.procedencia);
+                            return (pDest === destinoNorm && pProc === procedenciaNorm) || (pDest === procedenciaNorm && pProc === destinoNorm);
+                        });
+                        if (!pRow) pRow = metaPrecios.find(p => (p.destino && normalizarTexto(p.destino) === destinoNorm) || (p.procedencia && normalizarTexto(p.procedencia) === destinoNorm));
+                        if (!pRow) pRow = metaPrecios.find(p => (p.procedencia && normalizarTexto(p.procedencia) === procedenciaNorm) || (p.destino && normalizarTexto(p.destino) === procedenciaNorm));
+                        
+                        if (pRow) {
+                            totalMercanciaCalculado = peso * limpiarMonto(pRow.precio);
+                            totalFletCalculado = peso * limpiarMonto(pRow.flete);
+                            totalCobrarCalculado = totalMercanciaCalculado + totalFletCalculado;
+                        }
+                    }
+                    htmlMercanciaCelda = `<span>$${totalMercanciaCalculado.toLocaleString('es-CO')}</span>`;
+                    htmlFleteCelda = `<span>$${totalFletCalculado.toLocaleString('es-CO')}</span>`;
+                }
+
+                // --- 3. CÁLCULO DE SALDOS CONTABLES (CUÁNTO DEBE / CUÁNTO LE DEBEN) ---
+                let abonoProvReal = parseFloat(r.abono_proveedor) || 0;
+                let abonoCliReal = parseFloat(r.abono_cliente) || 0;
+
+                let saldoProveedor = totalCostoCalculado - abonoProvReal;
+                let saldoCliente = totalCobrarCalculado - abonoCliReal;
+
+                let htmlSaldoProveedorBadge = "";
+                if (totalCostoCalculado === 0 && esRutaValle && abonoProvReal === 0) {
+                    htmlSaldoProveedorBadge = `<span class="text-muted" style="font-size:0.7rem;">Falta precio jefe</span>`;
+                } else if (saldoProveedor <= 0) {
+                    htmlSaldoProveedorBadge = `<br><span class="badge-saldado">✔ SALDADO</span>`;
+                } else {
+                    htmlSaldoProveedorBadge = `<br><span class="text-deuda" style="color:var(--danger);">Debe: $${saldoProveedor.toLocaleString('es-CO')}</span>`;
+                }
+
+                let htmlSaldoClienteBadge = "";
+                if (totalCobrarCalculado === 0 && esRutaValle && abonoCliReal === 0) {
+                    htmlSaldoClienteBadge = `<span class="text-muted" style="font-size:0.7rem;">Falta precio jefe</span>`;
+                } else if (saldoCliente <= 0) {
+                    htmlSaldoClienteBadge = `<br><span class="badge-saldado">✔ SALDADO</span>`;
+                } else {
+                    htmlSaldoClienteBadge = `<br><span class="text-deuda" style="color:var(--warning);">Le deben: $${saldoCliente.toLocaleString('es-CO')}</span>`;
+                }
+
+                // Guardado estructurado para descarga de Excel/PDF
+                r.costo_calculado = "$ " + totalCostoCalculado.toLocaleString('es-CO');
+                r.precio_mercancia_calculado = "$ " + totalMercanciaCalculado.toLocaleString('es-CO');
+                r.precio_flete_calculado = "$ " + totalFleteCalculado.toLocaleString('es-CO');
+                r.precio_total_calculado = "$ " + totalCobrarCalculado.toLocaleString('es-CO');
 
                 const imgSoporte = r.url_soporte_cloudinary ? '<a href="' + r.url_soporte_cloudinary + '" target="_blank"><img src="' + r.url_soporte_cloudinary + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;"></a>' : '<span style="color:var(--text-muted);">---</span>';
 
-                // --- RENDEREIZAR LA FILA (Texto de guía arriba y cajita blanca debajo) ---
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><small>${r.id_registro}</small><br>${formatearFecha(r.fecha_ingreso)}</td>
+                    <td><strong>${r.id_registro}</strong><br><small>${formatearFecha(r.fecha_ingreso)}</small></td>
                     <td><span style="font-weight:bold; color:var(--primary);">${r.num_remision}</span><br><small style="color:var(--text-muted);">${r.tipo_movimiento}</small></td>
                     <td>${r.proveedor}</td>
                     <td>${r.cliente}</td>
-                    <td><small>${peso} T | ${v} M³</small><br><small>${r.ciudad_procedencia} ➔ ${r.ciudad_destino}</small></td>
+                    <td>${peso} T<br><small style="color:var(--text-muted);">${v} M³</small></td>
+                    <td><small>${r.ciudad_procedencia}<br>➔ ${r.ciudad_destino}</small></td>
                     
                     <td style="text-align:center;">
-                        <span style="color:var(--warning); font-weight:bold; font-size:0.9rem;">${costoTxt}</span><br>
-                        <input type="number" id="abono_prov_${r.id_registro}" class="input-abono" placeholder="Digitar Abono" value="${r.abono_proveedor || ''}">
+                        ${htmlCostoCelda}<br>
+                        <input type="number" id="abono_prov_${r.id_registro}" class="inline-abono" placeholder="Abonar $" value="${r.abono_proveedor || ''}">
+                        ${htmlSaldoProveedorBadge}
+                    </td>
+
+                    <td style="text-align:center; font-weight:500;">
+                        ${htmlMercanciaCelda}
+                    </td>
+
+                    <td style="text-align:center; font-weight:500;">
+                        ${htmlFleteCelda}
                     </td>
 
                     <td style="text-align:center;">
-                        <span style="color:var(--success); font-weight:bold; font-size:0.9rem;">${totalPrecioTxt}</span><br>
-                        <input type="number" id="abono_cli_${r.id_registro}" class="input-abono" placeholder="Digitar Abono" value="${r.abono_cliente || ''}">
+                        <span style="color:var(--success); font-weight:bold;">$${totalCobrarCalculado.toLocaleString('es-CO')}</span><br>
+                        <input type="number" id="abono_cli_${r.id_registro}" class="inline-abono" placeholder="Abonar $" value="${r.abono_cliente || ''}">
+                        ${htmlSaldoClienteBadge}
                     </td>
-                    
+
                     <td style="text-align:center;">
-                        <button class="btn btn-primary" onclick="guardarAbonos('${r.id_registro}')" style="padding:6px; width:35px; height:35px; border-radius:50%;"><i data-lucide="save" style="width:16px;height:16px;"></i></button>
+                        <button class="btn btn-primary" onclick="guardarFilaContable('${r.id_registro}', ${esRutaValle})" style="padding:6px; width:34px; height:34px; border-radius:50%;">
+                            <i data-lucide="save" style="width:14px;height:14px;"></i>
+                        </button>
                     </td>
 
                     <td style="text-align:center;">${imgSoporte}</td>
@@ -672,8 +641,8 @@
             const datosFormateados = datosEnPantalla.map(r => ({
                 "ID": r.id_registro, "Fecha": formatearFecha(r.fecha_ingreso), "Remisión": r.num_remision, "Movimiento": r.tipo_movimiento,
                 "Proveedor": r.proveedor, "Cliente": r.cliente, "Peso (T)": r.peso, "Procedencia": r.ciudad_procedencia, "Destino": r.ciudad_destino, 
-                "Costo Total (Guía)": r.costo_calculado_guia, "Abono Pagado a Proveedor": r.abono_proveedor, 
-                "Precio Total (Guía)": r.precio_calculado_guia, "Abono Recibido del Cliente": r.abono_cliente
+                "Costo Total": r.costo_calculado, "Abono Proveedor": r.abono_proveedor || 0,
+                "Vlr Mercancía": r.precio_mercancia_calculado, "Vlr Flete": r.precio_flete_calculado, "Total Cobrar": r.precio_total_calculado, "Abono Cliente": r.abono_cliente || 0
             }));
             const hoja = XLSX.utils.json_to_sheet(datosFormateados); const libro = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(libro, hoja, "Finanzas"); XLSX.writeFile(libro, "Reporte_Financiero_Ferrocarbon.xlsx");
@@ -683,9 +652,9 @@
             if (datosEnPantalla.length === 0) return;
             const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'pt', 'a4'); 
             doc.text("Reporte de Control Financiero - Ferrocarbon SAS", 40, 40);
-            const columnas = ["ID", "Fecha", "Remisión", "Proveedor", "Cliente", "Costo Total", "Abono Proveedor", "Precio Total", "Abono Cliente"];
-            const filas = datosEnPantalla.map(r => [ r.id_registro, formatearFecha(r.fecha_ingreso), r.num_remision, r.proveedor, r.cliente, r.costo_calculado_guia, r.abono_proveedor, r.precio_calculado_guia, r.abono_cliente ]);
-            doc.autoTable({ head: [columnas], body: filas, startY: 60, theme: 'grid', styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [59, 130, 246] } });
+            const columnas = ["ID", "Fecha", "Remisión", "Proveedor", "Cliente", "Costo", "Abono Prov", "Vlr Merc", "Vlr Flet", "Total Cobro", "Abono Cli"];
+            const filas = datosEnPantalla.map(r => [ r.id_registro, formatearFecha(r.fecha_ingreso), r.num_remision, r.proveedor, r.cliente, r.costo_calculado, r.abono_proveedor || 0, r.precio_mercancia_calculado, r.precio_flete_calculado, r.precio_total_calculado, r.abono_cliente || 0 ]);
+            doc.autoTable({ head: [columnas], body: filas, startY: 60, theme: 'grid', styles: { fontSize: 6.5, cellPadding: 2 }, headStyles: { fillColor: [59, 130, 246] } });
             doc.save("Reporte_Financiero_Ferrocarbon.pdf");
         }
     </script>
