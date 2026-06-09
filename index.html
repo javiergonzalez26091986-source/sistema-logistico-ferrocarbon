@@ -47,7 +47,7 @@
         .form-group label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
         input, select, textarea { background-color: var(--bg-dark); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main); padding: 10px; outline: none; font-size: 0.95rem; width: 100%; }
         input:focus, select:focus, textarea:focus { border-color: var(--primary); }
-        input:disabled { background-color: #1e293b; color: #475569; cursor: not-allowed; }
+        input:disabled { background-color: #0f172a; color: #475569; border-color: #1e293b; cursor: not-allowed; opacity: 0.4; }
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; width: 100%; transition: background-color 0.2s; }
         .btn-primary { background-color: var(--primary); color: #fff; }
         .btn-primary:hover { background-color: var(--primary-hover); }
@@ -80,7 +80,6 @@
         .spinner { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
-        /* Inputs dinámicos y limpios para el Dashboard */
         .inline-edit { width: 105px; padding: 6px; font-size: 0.75rem; text-align: center; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: white; font-weight: bold; }
         .inline-edit:focus { border-color: var(--primary); outline: none; }
         .inline-edit::placeholder { color: #64748b; font-weight: normal; }
@@ -88,7 +87,6 @@
         .inline-abono { width: 95px; padding: 6px; font-size: 0.8rem; text-align: center; border-radius: 4px; border: 1px solid #94a3b8; background: #ffffff; color: #0f172a; font-weight: bold; margin-top: 4px; }
         .inline-abono:focus { border-color: var(--primary); outline: none; }
         
-        /* Etiquetas estéticas para Saldos */
         .badge-saldado { background-color: rgba(16, 185, 129, 0.2); color: #10b981; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; margin-top: 4px; border: 1px solid rgba(16, 185, 129, 0.4); }
         .text-deuda { font-size: 0.75rem; font-weight: 700; display: inline-block; margin-top: 4px; }
     </style>
@@ -173,8 +171,8 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="ciudad_procedencia">Lugar_Despacho</label>
-                            <input type="text" id="ciudad_procedencia" list="lista-lugares-despacho" required placeholder="Digite para buscar" autocomplete="off">
+                            <label for="ciudad_procedencia">Lugar_Despacho (Origen)</label>
+                            <input type="text" id="ciudad_procedencia" list="lista-lugares-despacho" required placeholder="Digite origen" autocomplete="off" oninput="evaluarHabilitarMetrosCubicos()">
                         </div>
                         <div class="form-group">
                             <label for="proveedor">Proveedor</label>
@@ -183,7 +181,7 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="ciudad_destino">Ciudad_Procedencia</label>
+                            <label for="ciudad_destino">Ciudad_Procedencia (Destino)</label>
                             <input type="text" id="ciudad_destino" list="lista-ciudades-procedencia" required placeholder="Seleccione" autocomplete="off">
                         </div>
                         <div class="form-group">
@@ -193,8 +191,8 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="medicion_mts3">Medicion_Mts3</label>
-                            <input type="number" step="0.01" id="medicion_mts3" disabled placeholder="Volumen M3">
+                            <label for="medicion_mts3">Medicion_Mts3 (Solo Valle)</label>
+                            <input type="number" step="0.01" id="medicion_mts3" disabled placeholder="Bloqueado (No es Valle)">
                         </div>
                         <div class="form-group">
                             <label for="peso">Peso (Toneladas)</label>
@@ -304,21 +302,35 @@
             flatpickr("#filtro-inicio", configCalendario);
             flatpickr("#filtro-fin", configCalendario);
             cargarListasDesplegablesSheets();
-            document.getElementById('medicion_mts3').disabled = true;
 
-            // EVENTOS PARA EL OCR Y CLOUDINARY QUE FALTABAN
             document.getElementById('file-input-camera').addEventListener('change', procesarImagenSoporte);
             document.getElementById('file-input-gallery').addEventListener('change', procesarImagenSoporte);
         });
 
+        // NUEVO: Función encargada de evaluar en tiempo real si el origen es VALLE para liberar o bloquear el input de Mts3
+        function evaluarHabilitarMetrosCubicos() {
+            const origenInput = document.getElementById('ciudad_procedencia').value;
+            const mtsInput = document.getElementById('medicion_mts3');
+            
+            if (origenInput && normalizarTexto(origenInput).includes("VALLE")) {
+                mtsInput.disabled = false;
+                mtsInput.placeholder = "Volumen M3";
+                mtsInput.required = true; // Hace obligatorio el campo si es Valle
+            } else {
+                mtsInput.disabled = true;
+                mtsInput.value = ""; // Limpia el valor si cambia a otra procedencia ajena a Valle
+                mtsInput.placeholder = "Bloqueado (No es Valle)";
+                mtsInput.required = false;
+            }
+        }
+
         // ==========================================
-        // LÓGICA DE OCR Y SUBIDA A CLOUDINARY (NUEVO)
+        // LÓGICA DE OCR INTELIGENTE (ASIGNACIÓN AUTOMÁTICA)
         // ==========================================
         function procesarImagenSoporte(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            // 1. Mostrar vista previa en la cámara
             const reader = new FileReader();
             reader.onload = function(e) {
                 const cameraBox = document.getElementById('camera-box');
@@ -326,10 +338,7 @@
             };
             reader.readAsDataURL(file);
 
-            // 2. Subir imagen a Cloudinary en segundo plano
             subirSoporteACloudinary(file);
-
-            // 3. Iniciar el lector Tesseract.js
             ejecutarLecturaOCR(file);
         }
 
@@ -368,7 +377,7 @@
 
             Tesseract.recognize(
                 file,
-                'spa', // Usamos idioma español
+                'spa', 
                 { 
                     logger: m => {
                         if (m.status === 'recognizing text') {
@@ -379,13 +388,14 @@
                     }
                 }
             ).then(({ data: { text } }) => {
-                // Colocamos el texto extraído al inicio de las observaciones
                 let currentObs = document.getElementById('observaciones').value;
                 document.getElementById('observaciones').value = text.trim() + (currentObs ? "\n\n" + currentObs : "");
                 
-                statusText.innerText = '¡Lectura finalizada con éxito!';
+                extraerInformacionCampos(text);
+
+                statusText.innerText = '¡Campos procesados!';
                 setTimeout(() => { container.style.display = 'none'; }, 4000);
-                notificar("Texto escaneado correctamente.", "success");
+                notificar("Datos distribuidos en el formulario.", "success");
             }).catch(err => {
                 console.error(err);
                 statusText.innerText = 'Error al leer la imagen';
@@ -393,23 +403,53 @@
             });
         }
 
+        function extraerInformacionCampos(texto) {
+            const lineas = texto.split('\n');
+            
+            const matchRemision = texto.match(/(?:remision|remisión|no\.?|num\.?|guia|guía)[:#\s-]+([0-9]{4,8})/i);
+            if (matchRemision && matchRemision[1]) {
+                document.getElementById('num_remision').value = matchRemision[1].trim();
+            }
+
+            const matchPlaca = texto.match(/([a-z]{3})[\s-]?([0-9]{3})/i);
+            if (matchPlaca && matchPlaca[0]) {
+                document.getElementById('placa_vehiculo').value = matchPlaca[0].toUpperCase().replace(/[\s-]/g, '');
+            }
+
+            const matchPeso = texto.match(/(?:neto|peso|p\.b|cant|total)[:\s-]+([0-9]{2,5}[.,][0-9]{1,3})\s*(?:tn|t|kg|ton)/i) || 
+                              texto.match(/([0-9]{2}[.,][0-9]{1,2})\s*(?:tn|toneladas)/i);
+            if (matchPeso && matchPeso[1]) {
+                let valorPeso = matchPeso[1].replace(',', '.');
+                if (parseFloat(valorPeso) > 1000) {
+                    valorPeso = (parseFloat(valorPeso) / 1000).toFixed(2);
+                }
+                document.getElementById('peso').value = parseFloat(valorPeso);
+            }
+
+            const matchTiquete = texto.match(/(?:bascula|báscula|tiquete|ticket|nro\.? bascula)[:\s-]+([0-9]{4,8})/i);
+            if (matchTiquete && matchTiquete[1]) {
+                document.getElementById('tiquete_bascula').value = matchTiquete[1].trim();
+            }
+
+            const matchHora = texto.match(/([0-1]?[0-9]|2[0-3]):([0-5][0-9])\s*(ampm|am|pm)?/i);
+            if (matchHora && matchHora[0]) {
+                document.getElementById('hora_ingreso').value = matchHora[0].toLowerCase().trim();
+            }
+
+            // Si el OCR llega a leer la palabra "Valle" en la procedencia, ejecuta la verificación
+            evaluarHabilitarMetrosCubicos();
+        }
+
         // ==========================================
         // FUNCIONES DE FORMATEO (MILES EN VIVO)
         // ==========================================
         function formatNumberInput(input) {
-            let val = input.value.replace(/\D/g, ''); // Deja solo números
+            let val = input.value.replace(/\D/g, ''); 
             if (val !== '') {
                 input.value = parseInt(val, 10).toLocaleString('es-CO');
             } else {
                 input.value = '';
             }
-        }
-
-        function getRawNumber(id) {
-            let el = document.getElementById(id);
-            if (!el || el.value === "") return ""; // Retorna vacío si no se digitó nada
-            let val = el.value.replace(/\D/g, ''); // Quita los puntos de miles
-            return parseInt(val, 10) || 0;
         }
 
         // ==========================================
