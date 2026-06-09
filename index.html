@@ -129,7 +129,7 @@
                         <span id="ocr-status-text">Procesando imagen...</span>
                         <span id="ocr-percentage">0%</span>
                     </div>
-                    <div class="ocr-progress-bar" id="ocr-progress-bar" style="display:block;">
+                    <div class="ocr-progress-bar" style="display:block;">
                         <div class="ocr-progress-fill" id="ocr-progress-fill"></div>
                     </div>
                 </div>
@@ -305,7 +305,93 @@
             flatpickr("#filtro-fin", configCalendario);
             cargarListasDesplegablesSheets();
             document.getElementById('medicion_mts3').disabled = true;
+
+            // EVENTOS PARA EL OCR Y CLOUDINARY QUE FALTABAN
+            document.getElementById('file-input-camera').addEventListener('change', procesarImagenSoporte);
+            document.getElementById('file-input-gallery').addEventListener('change', procesarImagenSoporte);
         });
+
+        // ==========================================
+        // LÓGICA DE OCR Y SUBIDA A CLOUDINARY (NUEVO)
+        // ==========================================
+        function procesarImagenSoporte(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 1. Mostrar vista previa en la cámara
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const cameraBox = document.getElementById('camera-box');
+                cameraBox.innerHTML = `<img src="${e.target.result}" alt="Soporte Cargado" style="width: 100%; height: 100%; object-fit: contain;">`;
+            };
+            reader.readAsDataURL(file);
+
+            // 2. Subir imagen a Cloudinary en segundo plano
+            subirSoporteACloudinary(file);
+
+            // 3. Iniciar el lector Tesseract.js
+            ejecutarLecturaOCR(file);
+        }
+
+        function subirSoporteACloudinary(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', UPLOAD_PRESET);
+
+            fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.secure_url) {
+                    urlCloudinaryGlobal = data.secure_url;
+                    notificar("Soporte en la nube listo.", "success");
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                notificar("Error al subir a Cloudinary.", "error");
+            });
+        }
+
+        function ejecutarLecturaOCR(file) {
+            const container = document.getElementById('ocr-progress-container');
+            const fill = document.getElementById('ocr-progress-fill');
+            const percentText = document.getElementById('ocr-percentage');
+            const statusText = document.getElementById('ocr-status-text');
+
+            container.style.display = 'block';
+            statusText.innerText = 'Escaneando texto de la imagen...';
+            fill.style.width = '0%';
+            percentText.innerText = '0%';
+
+            Tesseract.recognize(
+                file,
+                'spa', // Usamos idioma español
+                { 
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            let progreso = Math.round(m.progress * 100);
+                            fill.style.width = progreso + '%';
+                            percentText.innerText = progreso + '%';
+                        }
+                    }
+                }
+            ).then(({ data: { text } }) => {
+                // Colocamos el texto extraído al inicio de las observaciones
+                let currentObs = document.getElementById('observaciones').value;
+                document.getElementById('observaciones').value = text.trim() + (currentObs ? "\n\n" + currentObs : "");
+                
+                statusText.innerText = '¡Lectura finalizada con éxito!';
+                setTimeout(() => { container.style.display = 'none'; }, 4000);
+                notificar("Texto escaneado correctamente.", "success");
+            }).catch(err => {
+                console.error(err);
+                statusText.innerText = 'Error al leer la imagen';
+                notificar("El lector óptico falló con esta imagen.", "error");
+            });
+        }
 
         // ==========================================
         // FUNCIONES DE FORMATEO (MILES EN VIVO)
@@ -482,8 +568,13 @@
                     document.getElementById('logistics-form').reset();
                     document.getElementById('fecha_ingreso').value = new Date().toISOString().substring(0, 10);
                     urlCloudinaryGlobal = ""; 
+                    document.getElementById('camera-box').innerHTML = '<i data-lucide="image-up" style="width:40px; height:40px; margin-bottom:10px;"></i><p>No se ha cargado remisión</p>';
+                    lucide.createIcons();
+                } else {
+                    notificar("Error al guardar la remisión.", "error");
                 }
             })
+            .catch(err => notificar("Error de red al guardar.", "error"))
             .finally(() => { btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Registrar en Google Sheets'; lucide.createIcons(); });
         }
 
