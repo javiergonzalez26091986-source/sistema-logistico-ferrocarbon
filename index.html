@@ -92,6 +92,31 @@
     </style>
 </head>
 <body>
+
+    <div id="bloqueo-sistema" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #0f172a; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; font-family: system-ui, sans-serif;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <h1 style="color: #f8fafc; margin-bottom: 15px; font-size: 2rem;">Acceso Restringido</h1>
+        <p style="color: #94a3b8; font-size: 1.1rem; max-width: 500px; line-height: 1.6; margin-bottom: 20px;">
+            El uso de esta plataforma logística ha sido suspendido temporalmente debido a obligaciones administrativas y financieras pendientes en el acuerdo de desarrollo.
+        </p>
+        <p style="color: #94a3b8; font-size: 1.1rem; max-width: 500px; line-height: 1.6;">
+            Por favor, comuníquese directamente con el desarrollador del sistema para regularizar el estado de la cuenta y restaurar el acceso inmediato a los registros y la base de datos.
+        </p>
+        <div style="margin-top: 40px; padding: 15px 30px; background-color: #1e293b; border-radius: 8px; border: 1px solid #334155;">
+            <p style="color: #f8fafc; font-weight: bold; margin: 0; font-size: 1.1rem;">Desarrollador: Javier González</p>
+        </div>
+    </div>
+    <script>
+        // Este script oculta el resto del sistema en el fondo para evitar que lo usen borrando el panel visual de bloqueo
+        document.addEventListener("DOMContentLoaded", function() {
+            document.body.style.overflow = "hidden";
+            const elementosAColapsar = document.querySelectorAll("header, section, .toast-container, datalist");
+            elementosAColapsar.forEach(el => el.style.display = "none");
+        });
+    </script>
     <datalist id="lista-lugares-despacho"></datalist>
     <datalist id="lista-ciudades-procedencia"></datalist>
     <datalist id="lista-proveedores"></datalist>
@@ -307,7 +332,6 @@
             document.getElementById('file-input-gallery').addEventListener('change', procesarImagenSoporte);
         });
 
-        // NUEVO: Función encargada de evaluar en tiempo real si el origen es VALLE para liberar o bloquear el input de Mts3
         function evaluarHabilitarMetrosCubicos() {
             const origenInput = document.getElementById('ciudad_procedencia').value;
             const mtsInput = document.getElementById('medicion_mts3');
@@ -315,18 +339,15 @@
             if (origenInput && normalizarTexto(origenInput).includes("VALLE")) {
                 mtsInput.disabled = false;
                 mtsInput.placeholder = "Volumen M3";
-                mtsInput.required = true; // Hace obligatorio el campo si es Valle
+                mtsInput.required = true; 
             } else {
                 mtsInput.disabled = true;
-                mtsInput.value = ""; // Limpia el valor si cambia a otra procedencia ajena a Valle
+                mtsInput.value = ""; 
                 mtsInput.placeholder = "Bloqueado (No es Valle)";
                 mtsInput.required = false;
             }
         }
 
-        // ==========================================
-        // LÓGICA DE OCR INTELIGENTE (ASIGNACIÓN AUTOMÁTICA)
-        // ==========================================
         function procesarImagenSoporte(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -436,13 +457,9 @@
                 document.getElementById('hora_ingreso').value = matchHora[0].toLowerCase().trim();
             }
 
-            // Si el OCR llega a leer la palabra "Valle" en la procedencia, ejecuta la verificación
             evaluarHabilitarMetrosCubicos();
         }
 
-        // ==========================================
-        // FUNCIONES DE FORMATEO (MILES EN VIVO)
-        // ==========================================
         function formatNumberInput(input) {
             let val = input.value.replace(/\D/g, ''); 
             if (val !== '') {
@@ -452,9 +469,6 @@
             }
         }
 
-        // ==========================================
-        // FUNCIONES DE CÁLCULO EN VIVO (TOTALES Y SALDOS)
-        // ==========================================
         function actualizarTotalValle(id_registro) {
             let merc = getRawNumber('valle_merc_' + id_registro) || 0;
             let flete = getRawNumber('valle_flete_' + id_registro) || 0;
@@ -464,8 +478,14 @@
             if (spanTotal) {
                 spanTotal.innerText = "$" + total.toLocaleString('es-CO');
             }
-            // Como el Total cambió, hay que recalcular el saldo del cliente
             actualizarSaldoCli(id_registro, total);
+        }
+
+        function getRawNumber(idElemento) {
+            let el = document.getElementById(idElemento);
+            if(!el) return 0;
+            let val = el.value.replace(/\D/g, '');
+            return parseInt(val, 10) || 0;
         }
 
         function actualizarSaldoProv(id_registro, costoOriginalFijo = null) {
@@ -517,9 +537,6 @@
             }
         }
 
-        // ==========================================
-        // UTILIDADES GENERALES
-        // ==========================================
         function formatearFecha(cadenaStr) {
             if (!cadenaStr) return "---";
             let d = new Date(cadenaStr);
@@ -635,9 +652,6 @@
             .then(result => { if (result.success && result.data) { historialDatosGlobal = result.data; renderizarTablaDashboard(historialDatosGlobal); } });
         }
 
-        // ==========================================
-        // GUARDADO DE FILA CONTABLE HACIA SHEETS
-        // ==========================================
         function guardarFilaContable(id_registro, esValle) {
             const btn = event.currentTarget;
             btn.innerHTML = '<i data-lucide="loader-2" class="spinner" style="width:14px;height:14px;"></i>';
@@ -698,9 +712,6 @@
             });
         }
 
-        // ==========================================
-        // RENDERIZADO DEL DASHBOARD
-        // ==========================================
         function renderizarTablaDashboard(datosRender) {
             datosEnPantalla = datosRender; 
             const tBody = document.getElementById('tabla-registros');
@@ -726,14 +737,12 @@
                 let totalFleteCalculado = 0;
                 let totalCobrarCalculado = 0;
 
-                // Valores formateados si ya existen en la base
                 let strValleCosto = (r.valle_costo !== undefined && r.valle_costo !== "") ? parseInt(r.valle_costo, 10).toLocaleString('es-CO') : "";
                 let strValleMerc = (r.valle_mercancia !== undefined && r.valle_mercancia !== "") ? parseInt(r.valle_mercancia, 10).toLocaleString('es-CO') : "";
                 let strValleFlete = (r.valle_flete !== undefined && r.valle_flete !== "") ? parseInt(r.valle_flete, 10).toLocaleString('es-CO') : "";
                 let strAbonoProv = (r.abono_proveedor !== undefined && r.abono_proveedor !== "") ? parseInt(r.abono_proveedor, 10).toLocaleString('es-CO') : "";
                 let strAbonoCli = (r.abono_cliente !== undefined && r.abono_cliente !== "") ? parseInt(r.abono_cliente, 10).toLocaleString('es-CO') : "";
 
-                // --- 1. LÓGICA DE COSTOS PROVEEDOR ---
                 let htmlCostoCelda = "";
                 if (esRutaValle) {
                     totalCostoCalculado = parseInt(r.valle_costo, 10) || 0;
@@ -746,7 +755,6 @@
                     htmlCostoCelda = `<span style="color:var(--warning); font-weight:bold; font-size:0.95rem;">$${totalCostoCalculado.toLocaleString('es-CO')}</span>`;
                 }
 
-                // --- 2. LÓGICA DE PRECIOS CLIENTE (Mercancía + Flete) ---
                 let htmlMercanciaCelda = "";
                 let htmlFleteCelda = "";
 
@@ -776,7 +784,6 @@
                     htmlFleteCelda = `<span style="font-weight:600;">$${totalFleteCalculado.toLocaleString('es-CO')}</span>`;
                 }
 
-                // --- 3. CÁLCULO DE SALDOS INICIALES ---
                 let abonoProvReal = parseInt(r.abono_proveedor, 10) || 0;
                 let abonoCliReal = parseInt(r.abono_cliente, 10) || 0;
 
@@ -801,7 +808,6 @@
                     }
                 }
 
-                // Conservar texto limpio para exportaciones a Excel/PDF
                 r.costo_calculado_guia = "$ " + totalCostoCalculado.toLocaleString('es-CO');
                 r.precio_mercancia_calculado = "$ " + totalMercanciaCalculado.toLocaleString('es-CO');
                 r.precio_flete_calculado = "$ " + totalFleteCalculado.toLocaleString('es-CO');
